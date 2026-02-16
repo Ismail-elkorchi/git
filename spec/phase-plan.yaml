@@ -23,7 +23,8 @@
         "LICENSE",
         "SECURITY.md",
         "CONTRIBUTING.md",
-        "CODEOWNERS"
+        "CODEOWNERS",
+        "package-lock.json"
       ],
       "denied_paths": [
         "dist/**",
