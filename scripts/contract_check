@@ -1,0 +1,76 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+
+function fail(message) {
+	process.stderr.write(message + "\n");
+	process.exit(1);
+}
+
+function readText(filePath) {
+	if (!fs.existsSync(filePath)) fail(`missing file: ${filePath}`);
+	return fs.readFileSync(filePath, "utf8");
+}
+
+function exportedNames(sourceText) {
+	const names = new Set();
+	const declRe = /^export\s+(?:async\s+)?(?:const|let|var|function|class|type|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+	for (const m of sourceText.matchAll(declRe)) names.add(m[1]);
+	const namedRe = /^export\s*\{([^}]+)\}/gm;
+	for (const m of sourceText.matchAll(namedRe)) {
+		const parts = m[1].split(",").map((x) => x.trim()).filter((x) => x.length > 0);
+		for (const part of parts) {
+			const alias = part.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/);
+			if (alias) names.add(alias[2] || alias[1]);
+		}
+	}
+	return names;
+}
+
+function parseContractExpected(contractText) {
+	const required = {
+		main: [],
+		node: [],
+		deno: [],
+		bun: [],
+	};
+	for (const line of contractText.split(/\r?\n/)) {
+		const main = line.match(/^The main entry point MUST export ([A-Za-z_][A-Za-z0-9_]*)\.$/);
+		if (main) required.main.push(main[1]);
+		const node = line.match(/^The node entry point MUST export ([A-Za-z_][A-Za-z0-9_]*)\.$/);
+		if (node) required.node.push(node[1]);
+		const deno = line.match(/^The deno entry point MUST export ([A-Za-z_][A-Za-z0-9_]*)\.$/);
+		if (deno) required.deno.push(deno[1]);
+		const bun = line.match(/^The bun entry point MUST export ([A-Za-z_][A-Za-z0-9_]*)\.$/);
+		if (bun) required.bun.push(bun[1]);
+	}
+	return required;
+}
+
+function main() {
+	const repoRoot = process.cwd();
+	const contractText = readText(path.join(repoRoot, "docs", "api-contract.md"));
+	const expected = parseContractExpected(contractText);
+
+	const mainExports = exportedNames(readText(path.join(repoRoot, "src", "index.ts")));
+	const nodeExports = exportedNames(readText(path.join(repoRoot, "src", "node.ts")));
+	const denoExports = exportedNames(readText(path.join(repoRoot, "src", "deno.ts")));
+	const bunExports = exportedNames(readText(path.join(repoRoot, "src", "bun.ts")));
+
+	for (const name of expected.main) {
+		if (!mainExports.has(name)) fail(`missing main export: ${name}`);
+	}
+	for (const name of expected.node) {
+		if (!nodeExports.has(name)) fail(`missing node export: ${name}`);
+	}
+	for (const name of expected.deno) {
+		if (!denoExports.has(name)) fail(`missing deno export: ${name}`);
+	}
+	for (const name of expected.bun) {
+		if (!bunExports.has(name)) fail(`missing bun export: ${name}`);
+	}
+
+	process.stdout.write("OK contract_check\n");
+}
+
+main();
