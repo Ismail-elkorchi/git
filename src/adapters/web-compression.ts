@@ -26,7 +26,7 @@ export class WebCompressionAdapter implements CompressionPort {
 	public async deflateRaw(payload: Uint8Array): Promise<Uint8Array> {
 		const stream = new Blob([toArrayBufferBackedBytes(payload)]).stream();
 		const compressedStream = stream.pipeThrough(
-			new CompressionStream("deflate-raw"),
+			new CompressionStream("deflate"),
 		);
 		return streamToBytes(compressedStream);
 	}
@@ -38,7 +38,7 @@ export class WebCompressionAdapter implements CompressionPort {
 		const limits = resolveInflateLimits(limitsInput);
 		const stream = new Blob([toArrayBufferBackedBytes(payload)]).stream();
 		const inflatedStream = stream.pipeThrough(
-			new DecompressionStream("deflate-raw"),
+			new DecompressionStream("deflate"),
 		);
 		const inflated = await streamToBytes(inflatedStream);
 		assertInflateWithinLimits(payload.byteLength, inflated.byteLength, limits);
