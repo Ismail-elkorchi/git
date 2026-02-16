@@ -667,6 +667,36 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\breflog\b/i, "reflog-entry-baseline");
   });
 
+  handlers.set("INV-FEAT-0015", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0015\b/, "inv-feat-0015-tests-token");
+    requireTreeMatch("tests", /\bDIRC\b/, "index-v2-header-check");
+  });
+
+  handlers.set("INV-FEAT-0016", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0016\b/, "inv-feat-0016-tests-token");
+    requireTreeMatch("tests", /\.add\(/, "repo-add-invocation");
+  });
+
+  handlers.set("INV-FEAT-0017", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0017\b/, "inv-feat-0017-tests-token");
+    requireTreeMatch("tests", /\.checkout\(/, "repo-checkout-invocation");
+  });
+
+  handlers.set("INV-FEAT-0018", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0018\b/, "inv-feat-0018-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "checkout-traversal-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0019", () => {
+    existsFile("src/core/status/status.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0019\b/, "inv-feat-0019-tests-token");
+    requireTreeMatch("tests", /deepEqual\(statusA,\s*statusB\)/, "status-determinism-check");
+  });
+
   return handlers;
 }
 

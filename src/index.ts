@@ -1,5 +1,11 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
+import { assertSafeWorktreePath } from "./core/checkout/path-safety.js";
 import { hashGitObject } from "./core/crypto/hash.js";
+import {
+	decodeIndexV2,
+	encodeIndexV2,
+	type GitIndexV2,
+} from "./core/index/index-v2.js";
 import {
 	decodeLooseObject,
 	encodeLooseObject,
@@ -11,6 +17,7 @@ import {
 	parsePackedRefs,
 } from "./core/refs/refs.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
+import { normalizeStatus, type RepoStatus } from "./core/status/status.js";
 import type { CompressionPort } from "./ports/compression.js";
 
 export type GitHashAlgorithm = "sha1" | "sha256";
@@ -228,6 +235,36 @@ export class Repo {
 		return new Repo(gitDirPath, worktreePath, hashAlgorithm);
 	}
 
+	private requireWorktreePath(): string {
+		if (this.worktreePath === null) {
+			throw new GitError("worktree is required", "UNSUPPORTED", {
+				gitDirPath: this.gitDirPath,
+			});
+		}
+		return this.worktreePath;
+	}
+
+	private async readIndexV2(fs: NodeFsPromises): Promise<GitIndexV2> {
+		const indexPath = joinFsPath(this.gitDirPath, "index");
+		const exists = await pathExists(fs, indexPath);
+		if (!exists) return { version: 2, entries: [] };
+		const rawIndex = await fs.readFile(indexPath);
+		if (!(rawIndex instanceof Uint8Array)) {
+			throw new GitError("index payload invalid", "OBJECT_FORMAT_ERROR", {
+				indexPath,
+			});
+		}
+		return decodeIndexV2(rawIndex);
+	}
+
+	private async writeIndexV2(
+		fs: NodeFsPromises,
+		index: GitIndexV2,
+	): Promise<void> {
+		const indexPath = joinFsPath(this.gitDirPath, "index");
+		await fs.writeFile(indexPath, encodeIndexV2(index));
+	}
+
 	private async writeLooseObject(
 		objectType: GitObjectType,
 		payload: Uint8Array,
@@ -273,6 +310,79 @@ export class Repo {
 		const inflated = await this.compression.inflateRaw(objectBytes);
 		const decoded = decodeLooseObject(inflated);
 		return decoded.payload;
+	}
+
+	public async readIndex(): Promise<GitIndexV2> {
+		const fs = await loadNodeFs();
+		return this.readIndexV2(fs);
+	}
+
+	public async add(paths: string[]): Promise<void> {
+		const fs = await loadNodeFs();
+		const worktreePath = this.requireWorktreePath();
+		const index = await this.readIndexV2(fs);
+		const byPath = new Map(index.entries.map((entry) => [entry.path, entry]));
+
+		for (const relPath of paths) {
+			assertSafeWorktreePath(relPath);
+			const absolutePath = joinFsPath(worktreePath, relPath);
+			const fileBytes = await fs.readFile(absolutePath);
+			if (!(fileBytes instanceof Uint8Array)) {
+				throw new GitError("file payload invalid", "OBJECT_FORMAT_ERROR", {
+					absolutePath,
+				});
+			}
+
+			const oid = await this.writeBlob(fileBytes);
+			byPath.set(relPath, {
+				path: relPath,
+				oid,
+				mode: 33188,
+			});
+		}
+
+		await this.writeIndexV2(fs, {
+			version: 2,
+			entries: [...byPath.values()].sort((a, b) =>
+				a.path.localeCompare(b.path),
+			),
+		});
+	}
+
+	public async status(): Promise<RepoStatus> {
+		const fs = await loadNodeFs();
+		const worktreePath = this.requireWorktreePath();
+		const index = await this.readIndexV2(fs);
+		const staged = index.entries.map((entry) => entry.path);
+		const unstaged: string[] = [];
+
+		for (const entry of index.entries) {
+			const absolutePath = joinFsPath(worktreePath, entry.path);
+			const fileBytes = await fs.readFile(absolutePath).catch(() => null);
+			if (!(fileBytes instanceof Uint8Array)) {
+				unstaged.push(entry.path);
+				continue;
+			}
+
+			const oid = await hashGitObject("blob", fileBytes, this.hashAlgorithm);
+			if (oid !== entry.oid) unstaged.push(entry.path);
+		}
+
+		return normalizeStatus(staged, unstaged);
+	}
+
+	public async checkout(
+		files: Record<string, Uint8Array | string>,
+	): Promise<void> {
+		const fs = await loadNodeFs();
+		const worktreePath = this.requireWorktreePath();
+		const pairs = Object.entries(files).sort(([a], [b]) => a.localeCompare(b));
+		for (const [relPath, payload] of pairs) {
+			assertSafeWorktreePath(relPath);
+			const absolutePath = joinFsPath(worktreePath, relPath);
+			await fs.mkdir(parentFsPath(absolutePath), { recursive: true });
+			await fs.writeFile(absolutePath, toBytes(payload));
+		}
 	}
 
 	public async resolveRef(refName: string): Promise<string | null> {
