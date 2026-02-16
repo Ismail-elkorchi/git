@@ -3,6 +3,8 @@
 The repository MUST implement work as sequential pull requests defined in spec/phase-plan.yaml.
 The repository MUST maintain critical claim mappings in spec/claims.yaml.
 The repository MUST maintain formal logic lens mappings in spec/lens-mapping.yaml.
+The repository MUST maintain parity baseline tracking in docs/parity-baseline.md.
+The repository MUST maintain command-family parity status in docs/parity-matrix.md.
 Each pull request MUST update spec/state.yaml current_phase to the pull request phase number.
 Pull request PR-0001 MUST establish repository scaffolding and CI and policy gates.
 Pull request PR-0002 MUST establish public API contracts and ports and error taxonomy.
@@ -22,3 +24,5 @@ Pull request PR-0015 MUST implement sparse-checkout and partial clone support wi
 Pull request PR-0016 MUST implement commit-graph and multi-pack-index and bitmap support with tests.
 Pull request PR-0017 MUST implement maintenance flows for gc and repack and prune with tests.
 Pull request PR-0018 MUST implement conformance and benchmark and hardening gates and release readiness.
+After PR-0018 merge, maintenance pull requests MUST keep spec/state.yaml current_phase equal to total_phases.
+After PR-0018 merge, maintenance pull requests MUST NOT modify spec/phase-plan.yaml.
