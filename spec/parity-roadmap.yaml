@@ -108,7 +108,7 @@
 			"id": "last-modified",
 			"section": "newer-git-command-families",
 			"matrix_label": "`last-modified`",
-			"state": "not-implemented"
+			"state": "implemented"
 		}
 	]
 }

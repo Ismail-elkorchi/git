@@ -70,6 +70,28 @@ function requireReplayEvidence(repoRoot) {
   }
 }
 
+function requireLastModifiedEvidence(repoRoot) {
+  const indexText = readText(path.join(repoRoot, "src", "index.ts"));
+  if (!indexText.includes("public async lastModified(")) {
+    fail("last-modified parity implemented state requires Repo.lastModified API.");
+  }
+
+  const testPath = path.join(repoRoot, "tests", "node", "last-modified.test.mjs");
+  if (!fs.existsSync(testPath)) {
+    fail("last-modified parity implemented state requires tests/node/last-modified.test.mjs.");
+  }
+  const testText = readText(testPath);
+  if (!testText.includes(".lastModified(")) {
+    fail("last-modified parity implemented state requires lastModified invocation in tests.");
+  }
+  if (!/\["log",\s*"-1",\s*"--format=%H"/.test(testText)) {
+    fail("last-modified parity implemented state requires git log baseline checks.");
+  }
+  if (!/\["ls-files",\s*"--stage"/.test(testText)) {
+    fail("last-modified parity implemented state requires git ls-files baseline checks.");
+  }
+}
+
 function main() {
   const repoRoot = process.cwd();
   const roadmapPath = path.join(repoRoot, "spec", "parity-roadmap.yaml");
@@ -174,6 +196,9 @@ function main() {
   const implementedFamilies = readImplementedFamiliesById(roadmap.families);
   if (implementedFamilies.has("replay")) {
     requireReplayEvidence(repoRoot);
+  }
+  if (implementedFamilies.has("last-modified")) {
+    requireLastModifiedEvidence(repoRoot);
   }
 
   process.stdout.write("OK parity_matrix_check\n");

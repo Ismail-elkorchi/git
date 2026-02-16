@@ -42,7 +42,7 @@ The parity matrix MUST define test evidence expectations for each command family
 | `repo` | not-implemented | MUST define scope and fixtures before marking implemented. |
 | `backfill` | not-implemented | MUST define protocol and object model behavior before marking implemented. |
 | `replay` | implemented | MUST pass ordered replay and conflict-stop parity tests against sequential git apply behavior. |
-| `last-modified` | not-implemented | MUST define index and history query semantics before marking implemented. |
+| `last-modified` | implemented | MUST pass history and index parity tests against git log and git ls-files outputs. |
 
 ## Governance
 
