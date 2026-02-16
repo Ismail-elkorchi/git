@@ -71,6 +71,13 @@ import {
 	upsertRemoteConfig,
 } from "./core/remote/remote-config.js";
 import { normalizeReplaceState, setReplace } from "./core/replace/replace.js";
+import {
+	type ReplayResult,
+	type ReplayStep,
+	replayCompleted,
+	replayConflict,
+	validateReplaySteps,
+} from "./core/replay/replay.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
 import { revertCommitPayload } from "./core/revert/revert.js";
 import {
@@ -1495,6 +1502,36 @@ export class Repo {
 		});
 		if (options.updateIndex) await this.add([applied.filePath]);
 		return applied.filePath;
+	}
+
+	public async replay(
+		steps: ReplayStep[],
+		options: { updateIndex?: boolean } = {},
+	): Promise<ReplayResult> {
+		const replayValidation = validateReplaySteps(steps);
+		if (!replayValidation.ok) {
+			throw new GitError("replay steps invalid", "INVALID_ARGUMENT", {
+				reason: replayValidation.reason,
+			});
+		}
+
+		const appliedPaths: string[] = [];
+		for (let index = 0; index < replayValidation.steps.length; index += 1) {
+			const step = replayValidation.steps[index];
+			if (!step) continue;
+			const applyResult = await this.applyPatch(step.patchText, {
+				reverse: step.reverse === true,
+				updateIndex: options.updateIndex === true,
+			}).then(
+				(appliedPath) => ({ ok: true as const, appliedPath }),
+				() => ({ ok: false as const }),
+			);
+			if (!applyResult.ok) {
+				return replayConflict(appliedPaths, index);
+			}
+			appliedPaths.push(applyResult.appliedPath);
+		}
+		return replayCompleted(appliedPaths);
 	}
 
 	public blame(lines: string[], blame: BlameTuple[]): BlameTuple[] {
