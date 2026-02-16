@@ -651,13 +651,22 @@ function invariantHandlers(repoRoot) {
 
   handlers.set("INV-FEAT-0012", () => {
     existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("src", /\bcreateRef\b/, "repo-create-ref");
     requireTreeMatch("tests", /\bINV-FEAT-0012\b/, "inv-feat-0012-tests-token");
+    requireTreeMatch("tests", /\.createRef\(/, "repo-create-ref-invocation");
     requireTreeMatch("tests", /\bshow-ref\b/i, "show-ref-baseline");
   });
 
   handlers.set("INV-FEAT-0013", () => {
     existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("src", /\blistRefs\b/, "repo-list-refs");
+    requireTreeMatch("src", /\bdeleteRef\b/, "repo-delete-ref");
+    requireTreeMatch("src", /\bverifyRef\b/, "repo-verify-ref");
     requireTreeMatch("tests", /\bINV-FEAT-0013\b/, "inv-feat-0013-tests-token");
+    requireTreeMatch("tests", /\.listRefs\(/, "repo-list-refs-invocation");
+    requireTreeMatch("tests", /\.deleteRef\(/, "repo-delete-ref-invocation");
+    requireTreeMatch("tests", /\.verifyRef\(/, "repo-verify-ref-invocation");
+    requireTreeMatch("tests", /\bfor-each-ref\b/i, "for-each-ref-baseline");
     requireTreeMatch("tests", /\bpack-refs\b/i, "packed-refs-baseline");
   });
 
