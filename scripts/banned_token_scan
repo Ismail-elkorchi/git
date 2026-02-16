@@ -1,0 +1,66 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function tokenRegex(token) {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = `(^|[^A-Za-z0-9_])${escaped}($|[^A-Za-z0-9_])`;
+  return new RegExp(pattern, "i");
+}
+
+function readBannedTokens(repoRoot) {
+  const p = path.join(repoRoot, "spec", "banned-tokens.txt");
+  if (!fs.existsSync(p)) fail("spec/banned-tokens.txt is missing.");
+  const lines = fs.readFileSync(p, "utf8").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+  if (lines.length === 0) fail("spec/banned-tokens.txt is empty.");
+  return lines;
+}
+
+function listTrackedFiles(repoRoot) {
+  const res = spawnSync("git", ["ls-files", "-z"], { cwd: repoRoot, encoding: "buffer" });
+  if (res.status !== 0) fail("git ls-files failed.");
+  const out = Buffer.from(res.stdout || Buffer.alloc(0)).toString("utf8");
+  return out.split("\0").filter((p) => p.length > 0);
+}
+
+function isScannableFile(relPath) {
+  if (relPath === "spec/banned-tokens.txt") return false;
+  if (relPath === "package-lock.json") return false;
+  if (relPath.startsWith("node_modules/")) return false;
+  if (relPath.startsWith("dist/")) return false;
+  if (relPath.startsWith("artifacts/")) return false;
+  if (relPath.startsWith(".git/")) return false;
+  return true;
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const tokens = readBannedTokens(repoRoot);
+  const regexes = tokens.map((t) => ({ token: t, re: tokenRegex(t) }));
+  const files = listTrackedFiles(repoRoot).filter(isScannableFile);
+
+  const violations = [];
+
+  for (const rel of files) {
+    const abs = path.join(repoRoot, rel);
+    const text = fs.readFileSync(abs, "utf8");
+    for (const { token, re } of regexes) {
+      if (re.test(text)) violations.push({ file: rel, token });
+    }
+  }
+
+  if (violations.length > 0) {
+    for (const v of violations) process.stderr.write(`BANNED_TOKEN ${v.token} ${v.file}\n`);
+    process.exit(2);
+  }
+
+  process.stdout.write("OK banned_token_scan\n");
+}
+
+main();

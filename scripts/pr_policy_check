@@ -1,0 +1,220 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function readJsonLike(absPath) {
+  const text = fs.readFileSync(absPath, "utf8");
+  return JSON.parse(text);
+}
+
+function escapeRegexToken(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function globToRegex(glob) {
+  let out = "^";
+  for (let i = 0; i < glob.length; i += 1) {
+    const ch = glob[i];
+    const next = glob[i + 1];
+    if (ch === "*" && next === "*") {
+      out += ".*";
+      i += 1;
+      continue;
+    }
+    if (ch === "*") {
+      out += "[^/]*";
+      continue;
+    }
+    out += escapeRegexToken(ch ?? "");
+  }
+  out += "$";
+  return new RegExp(out);
+}
+
+function getBranchName(repoRoot) {
+  const envName = process.env.GITHUB_HEAD_REF || process.env.GITHUB_REF_NAME;
+  if (envName && envName.length > 0) return envName;
+  const res = spawnSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: repoRoot, encoding: "utf8" });
+  if (res.status !== 0) fail("git rev-parse failed.");
+  return (res.stdout || "").trim();
+}
+
+function getChangedFiles(repoRoot, baseRef) {
+  const range = `origin/${baseRef}...HEAD`;
+  const res = spawnSync("git", ["diff", "--name-only", "--diff-filter=ACMRT", range], { cwd: repoRoot, encoding: "utf8" });
+  if (res.status !== 0) fail("git diff failed.");
+  return (res.stdout || "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+}
+
+function readBaseStatePhase(repoRoot, baseRef) {
+  const res = spawnSync("git", ["show", `origin/${baseRef}:spec/state.yaml`], { cwd: repoRoot, encoding: "utf8" });
+  if (res.status !== 0) return 0;
+  const text = res.stdout || "";
+  const m = text.match(/"current_phase"\s*:\s*([0-9]+)/);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  if (!Number.isInteger(n)) return 0;
+  return n;
+}
+
+function readPullRequestPayload() {
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath || eventPath.length === 0) fail("GITHUB_EVENT_PATH is missing for pull request validation.");
+  if (!fs.existsSync(eventPath)) fail("GITHUB_EVENT_PATH file is missing.");
+  return readJsonLike(eventPath);
+}
+
+function extractRoleSection(body, roleHeading) {
+  const marker = `### ${roleHeading}`;
+  const start = body.indexOf(marker);
+  if (start === -1) fail(`pull request body missing role section: ${marker}`);
+  const tail = body.slice(start + marker.length);
+  const next = tail.search(/\n### /);
+  if (next === -1) return tail;
+  return tail.slice(0, next);
+}
+
+function validateLabelBullets(roleSection, label, roleHeading) {
+  const lines = roleSection.split(/\r?\n/);
+  let foundLabel = false;
+  let collecting = false;
+  let bulletCount = 0;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!foundLabel) {
+      if (line === `${label}:`) {
+        foundLabel = true;
+        collecting = true;
+      }
+      continue;
+    }
+
+    if (line === "Findings:" || line === "Changes made:" || line === "Evidence pointers:") {
+      if (line !== `${label}:`) collecting = false;
+    }
+
+    if (!collecting) continue;
+
+    if (line.startsWith("- ")) {
+      const value = line.slice(2).trim().toLowerCase();
+      if (["none", "n/a", "na", "not-set", "not-applicable"].includes(value)) {
+        fail(`pull request body template-value bullet in ${roleHeading} ${label}`);
+      }
+      bulletCount += 1;
+    }
+  }
+
+  if (!foundLabel) fail(`pull request body missing label in ${roleHeading}: ${label}`);
+  if (bulletCount === 0) fail(`pull request body missing bullets in ${roleHeading}: ${label}`);
+}
+
+function validatePullRequestBody(body) {
+  const requiredSections = [
+    "## Acceptance Criteria",
+    "## Checklist",
+    "## Simulated Role Reviews",
+    "### Product review",
+    "### QA review",
+    "### Security review",
+    "### Performance review",
+    "### Maintainer review",
+  ];
+
+  for (const section of requiredSections) {
+    if (!body.includes(section)) fail(`pull request body missing section: ${section}`);
+  }
+
+  if (/\bnone\b/i.test(body)) fail("pull request body contains prohibited token none.");
+
+  const roles = [
+    "Product review",
+    "QA review",
+    "Security review",
+    "Performance review",
+    "Maintainer review",
+  ];
+
+  for (const role of roles) {
+    const block = extractRoleSection(body, role);
+    validateLabelBullets(block, "Findings", role);
+    validateLabelBullets(block, "Changes made", role);
+    validateLabelBullets(block, "Evidence pointers", role);
+  }
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const event = process.env.GITHUB_EVENT_NAME || "";
+  const isPullRequest = event === "pull_request" || Boolean(process.env.GITHUB_HEAD_REF);
+
+  const statePath = path.join(repoRoot, "spec", "state.yaml");
+  const phasePlanPath = path.join(repoRoot, "spec", "phase-plan.yaml");
+
+  if (!fs.existsSync(statePath)) fail("spec/state.yaml is missing.");
+  if (!fs.existsSync(phasePlanPath)) fail("spec/phase-plan.yaml is missing.");
+
+  const state = readJsonLike(statePath);
+  const plan = readJsonLike(phasePlanPath);
+
+  if (!Number.isInteger(state.current_phase)) fail("state.yaml current_phase type mismatch.");
+  if (!Number.isInteger(plan.total_phases)) fail("phase-plan.yaml total_phases type mismatch.");
+  if (state.current_phase < 0) fail("state.yaml current_phase negative.");
+  if (state.current_phase > plan.total_phases) fail("state.yaml current_phase exceeds total_phases.");
+
+  if (!isPullRequest) {
+    process.stdout.write("OK pr_policy_check\n");
+    return;
+  }
+
+  const baseRef = process.env.GITHUB_BASE_REF || "main";
+  const branch = getBranchName(repoRoot);
+
+  if (state.current_phase < 1) fail("state.yaml current_phase MUST be >= 1 on pull requests.");
+  const phase = plan.phases.find((p) => p.phase === state.current_phase);
+  if (!phase) fail("phase lookup failure.");
+  if (branch !== phase.branch) fail(`branch mismatch: ${branch} ${phase.branch}`);
+
+  const changed = getChangedFiles(repoRoot, baseRef);
+
+  if (!changed.includes("spec/state.yaml")) fail("spec/state.yaml MUST be modified on pull requests.");
+
+  const basePhase = readBaseStatePhase(repoRoot, baseRef);
+  if (state.current_phase !== basePhase + 1) fail("state.yaml current_phase MUST advance by exactly 1.");
+
+  const allow = phase.allowed_paths.map(globToRegex);
+  const deny = phase.denied_paths.map(globToRegex);
+
+  for (const f of changed) {
+    const isAllowed = allow.some((re) => re.test(f));
+    if (!isAllowed) fail(`file outside allowlist: ${f}`);
+    const isDenied = deny.some((re) => re.test(f));
+    if (isDenied) fail(`file in denylist: ${f}`);
+  }
+
+  if (state.current_phase > 1) {
+    if (changed.includes("spec/phase-plan.yaml")) fail("spec/phase-plan.yaml MUST NOT change after phase 1.");
+  }
+
+  const payload = readPullRequestPayload();
+  const pr = payload.pull_request;
+  if (!pr || typeof pr !== "object") fail("pull request payload missing pull_request object.");
+
+  const prTitle = String(pr.title || "").trim();
+  if (prTitle.length === 0) fail("pull request title is empty.");
+  if (prTitle !== phase.title) fail(`pull request title mismatch: ${prTitle} ${phase.title}`);
+
+  const prBody = String(pr.body || "");
+  if (prBody.trim().length === 0) fail("pull request body is empty.");
+  validatePullRequestBody(prBody);
+
+  process.stdout.write("OK pr_policy_check\n");
+}
+
+main();

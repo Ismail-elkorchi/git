@@ -1,0 +1,180 @@
+{
+  "schema_version": 1,
+  "mappings": [
+    {
+      "lens_id": "RL-LOG-0001",
+      "invariant_ids": [
+        "INV-QUAL-0001",
+        "INV-QUAL-0002",
+        "INV-QUAL-0003",
+        "INV-QUAL-0004",
+        "INV-QUAL-0015",
+        "INV-QUAL-0016",
+        "INV-QUAL-0017",
+        "INV-QUAL-0019",
+        "INV-QUAL-0030",
+        "INV-QUAL-0031",
+        "INV-OPER-0002"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0002",
+      "invariant_ids": [
+        "INV-QUAL-0032",
+        "INV-QUAL-0033",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0003",
+      "invariant_ids": [
+        "INV-ARCH-0001",
+        "INV-FEAT-0003",
+        "INV-FEAT-0004",
+        "INV-FEAT-0014",
+        "INV-FEAT-0037",
+        "INV-FEAT-0040"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0004",
+      "invariant_ids": [
+        "INV-ARCH-0002",
+        "INV-QUAL-0030",
+        "INV-FEAT-0030",
+        "INV-FEAT-0048",
+        "INV-OPER-0003"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0005",
+      "invariant_ids": [
+        "INV-OPER-0002",
+        "INV-QUAL-0040",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0006",
+      "invariant_ids": [
+        "INV-OPER-0002",
+        "INV-QUAL-0030",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0007",
+      "invariant_ids": [
+        "INV-OPER-0002",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0008",
+      "invariant_ids": [
+        "INV-FEAT-0012",
+        "INV-FEAT-0014",
+        "INV-FEAT-0042"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0009",
+      "invariant_ids": [
+        "INV-ARCH-0005",
+        "INV-QUAL-0006",
+        "INV-QUAL-0007",
+        "INV-QUAL-0008",
+        "INV-QUAL-0009",
+        "INV-QUAL-0011",
+        "INV-QUAL-0012",
+        "INV-QUAL-0013",
+        "INV-QUAL-0014"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0010",
+      "invariant_ids": [
+        "INV-OPER-0002",
+        "INV-QUAL-0032",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0011",
+      "invariant_ids": [
+        "INV-FEAT-0030",
+        "INV-FEAT-0048",
+        "INV-OPER-0003"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0012",
+      "invariant_ids": [
+        "INV-QUAL-0040",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0013",
+      "invariant_ids": [
+        "INV-QUAL-0032",
+        "INV-QUAL-0033"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0014",
+      "invariant_ids": [
+        "INV-QUAL-0020",
+        "INV-QUAL-0021",
+        "INV-QUAL-0031"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0015",
+      "invariant_ids": [
+        "INV-QUAL-0032",
+        "INV-QUAL-0033"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0016",
+      "invariant_ids": [
+        "INV-OPER-0002",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0017",
+      "invariant_ids": [
+        "INV-OPER-0003",
+        "INV-QUAL-0040",
+        "INV-QUAL-0041"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0018",
+      "invariant_ids": [
+        "INV-QUAL-0033",
+        "INV-OPER-0002"
+      ]
+    },
+    {
+      "lens_id": "RL-LOG-0019",
+      "invariant_ids": [
+        "INV-QUAL-0032",
+        "INV-QUAL-0033"
+      ]
+    },
+    {
+      "lens_id": "RL-CON-0002",
+      "invariant_ids": [
+        "INV-QUAL-0001",
+        "INV-ARCH-0001",
+        "INV-ARCH-0002",
+        "INV-QUAL-0002",
+        "INV-QUAL-0003",
+        "INV-QUAL-0004"
+      ]
+    }
+  ]
+}

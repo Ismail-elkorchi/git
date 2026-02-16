@@ -1,0 +1,41 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function readJsonLike(absPath) {
+  return JSON.parse(fs.readFileSync(absPath, "utf8"));
+}
+
+function run(cmd, args) {
+  const res = spawnSync(cmd, args, { stdio: "inherit" });
+  if (res.status !== 0) fail(`command failed: ${cmd} ${args.join(" ")}`);
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const statePath = path.join(repoRoot, "spec", "state.yaml");
+  const planPath = path.join(repoRoot, "spec", "phase-plan.yaml");
+  if (!fs.existsSync(statePath)) fail("spec/state.yaml is missing.");
+  if (!fs.existsSync(planPath)) fail("spec/phase-plan.yaml is missing.");
+
+  const state = readJsonLike(statePath);
+  const plan = readJsonLike(planPath);
+
+  if (state.current_phase !== plan.total_phases) {
+    process.stdout.write("OK publish_dry_run skip\n");
+    return;
+  }
+
+  run("npm", ["pack"]);
+  run("npx", ["jsr", "publish", "--dry-run"]);
+
+  process.stdout.write("OK publish_dry_run\n");
+}
+
+main();

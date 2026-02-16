@@ -1,0 +1,10 @@
+{
+	"name": "@ismail-elkorchi/git",
+	"version": "0.0.0",
+	"exports": {
+		".": "./src/index.ts",
+		"./node": "./src/node.ts",
+		"./deno": "./src/deno.ts",
+		"./bun": "./src/bun.ts"
+	}
+}

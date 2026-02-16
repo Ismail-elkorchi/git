@@ -1,0 +1,45 @@
+{
+	"name": "@ismail-elkorchi/git",
+	"version": "0.0.0",
+	"type": "module",
+	"description": "Pure Git core with Node and Deno and Bun adapters.",
+	"license": "MIT",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./node": {
+			"types": "./dist/node.d.ts",
+			"default": "./dist/node.js"
+		},
+		"./deno": {
+			"types": "./dist/deno.d.ts",
+			"default": "./dist/deno.js"
+		},
+		"./bun": {
+			"types": "./dist/bun.d.ts",
+			"default": "./dist/bun.js"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE",
+		"SECURITY.md",
+		"CONTRIBUTING.md"
+	],
+	"scripts": {
+		"lint": "biome check .github scripts docs spec src tests package.json jsr.json tsconfig.json tsconfig.build.json deno.json biome.json",
+		"typecheck": "tsc -p tsconfig.json --noEmit",
+		"build": "tsc -p tsconfig.build.json",
+		"test:node": "node --test \"tests/node/**/*.test.mjs\"",
+		"test:deno": "deno test --allow-read --allow-write --allow-run --allow-net=127.0.0.1 tests/deno",
+		"test:bun": "bun test tests/bun",
+		"publish:dry-run": "node scripts/publish_dry_run"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.14",
+		"typescript": "^5.0.0"
+	}
+}

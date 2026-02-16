@@ -1,0 +1,1128 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function readText(absPath) {
+  return fs.readFileSync(absPath, "utf8");
+}
+
+function readJsonLike(absPath) {
+  const text = readText(absPath);
+  return JSON.parse(text);
+}
+
+function ensureDir(absPath) {
+  fs.mkdirSync(absPath, { recursive: true });
+}
+
+function run(cmd, args, opts = {}) {
+  const res = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  if (res.status !== 0) {
+    fail(`command failed: ${cmd} ${args.join(" ")}`);
+  }
+}
+
+function parseArgs(argv) {
+  const args = { runtime: "node", mode: "check" };
+  for (const a of argv.slice(2)) {
+    if (a.startsWith("--runtime=")) args.runtime = a.split("=", 2)[1];
+    if (a.startsWith("--mode=")) args.mode = a.split("=", 2)[1];
+  }
+  return args;
+}
+
+function runtimeIdFromArgs(args) {
+  if (args.runtime === "node") return "node";
+  if (args.runtime === "deno") return "deno";
+  if (args.runtime === "bun") return "bun";
+  fail(`unsupported runtime argument: ${args.runtime}`);
+}
+
+function evidencePath(repoRoot, invId) {
+  return path.join(repoRoot, "artifacts", "gates", `${invId}.json`);
+}
+
+function writeEvidence(repoRoot, inv, status, runtimeId, details) {
+  const outDir = path.join(repoRoot, "artifacts", "gates");
+  ensureDir(outDir);
+  const p = evidencePath(repoRoot, inv.id);
+  const payload = {
+    invariant_id: inv.id,
+    status,
+    timestamp_utc: new Date().toISOString(),
+    runtime_id: runtimeId,
+    verification_method: inv.proof_obligation.verification_method,
+    falsification_method: inv.proof_obligation.falsification_method,
+    details,
+  };
+  fs.writeFileSync(p, JSON.stringify(payload, null, 2) + "\n", "utf8");
+}
+
+function isIsoUtcDate(value) {
+  if (typeof value !== "string") return false;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return false;
+  return /Z$/.test(value);
+}
+
+function readEvidenceSchema(repoRoot) {
+  const schemaPath = path.join(repoRoot, "spec", "evidence.schema.json");
+  if (!fs.existsSync(schemaPath)) fail("spec/evidence.schema.json is missing.");
+  const schema = readJsonLike(schemaPath);
+  if (!Array.isArray(schema.required)) fail("evidence.schema.json required keys are missing.");
+  if (!schema.properties || typeof schema.properties !== "object") fail("evidence.schema.json properties are missing.");
+  return schema;
+}
+
+function validateEvidenceArtifactPayload(inv, payload, expectedRuntimeId, evidenceSchema) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    fail(`evidence payload type invalid: ${inv.id}`);
+  }
+
+  const expectedKeys = new Set(evidenceSchema.required);
+
+  for (const k of Object.keys(payload)) {
+    if (!expectedKeys.has(k)) fail(`evidence payload unexpected key ${k}: ${inv.id}`);
+  }
+  for (const k of expectedKeys) {
+    if (!Object.prototype.hasOwnProperty.call(payload, k)) {
+      fail(`evidence payload missing key ${k}: ${inv.id}`);
+    }
+  }
+
+  if (payload.invariant_id !== inv.id) fail(`evidence invariant_id mismatch: ${inv.id}`);
+  const statusEnum = evidenceSchema.properties.status?.enum;
+  if (!Array.isArray(statusEnum) || !statusEnum.includes(payload.status)) fail(`evidence status invalid: ${inv.id}`);
+  if (!isIsoUtcDate(payload.timestamp_utc)) fail(`evidence timestamp_utc invalid: ${inv.id}`);
+  if (typeof payload.runtime_id !== "string" || payload.runtime_id.length === 0) {
+    fail(`evidence runtime_id invalid: ${inv.id}`);
+  }
+  if (payload.runtime_id !== expectedRuntimeId) fail(`evidence runtime_id mismatch: ${inv.id}`);
+
+  const verifEnum = evidenceSchema.properties.verification_method?.enum;
+  if (!Array.isArray(verifEnum) || !verifEnum.includes(payload.verification_method)) {
+    fail(`evidence verification_method invalid against schema: ${inv.id}`);
+  }
+  if (payload.verification_method !== inv.proof_obligation.verification_method) {
+    fail(`evidence verification_method mismatch: ${inv.id}`);
+  }
+  const falsEnum = evidenceSchema.properties.falsification_method?.enum;
+  if (!Array.isArray(falsEnum) || !falsEnum.includes(payload.falsification_method)) {
+    fail(`evidence falsification_method invalid against schema: ${inv.id}`);
+  }
+  if (payload.falsification_method !== inv.proof_obligation.falsification_method) {
+    fail(`evidence falsification_method mismatch: ${inv.id}`);
+  }
+  if (!payload.details || typeof payload.details !== "object" || Array.isArray(payload.details)) {
+    fail(`evidence details object invalid: ${inv.id}`);
+  }
+}
+
+function validateEvidenceArtifacts(repoRoot, invariants, runtimeId, evidenceSchema) {
+  for (const inv of invariants) {
+    const p = evidencePath(repoRoot, inv.id);
+    if (!fs.existsSync(p)) fail(`missing evidence artifacts: ${inv.id}`);
+    const payload = readJsonLike(p);
+    validateEvidenceArtifactPayload(inv, payload, runtimeId, evidenceSchema);
+  }
+}
+
+function listFilesRecursive(absRoot) {
+  if (!fs.existsSync(absRoot)) return [];
+  const out = [];
+  const stack = [absRoot];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    const entries = fs.readdirSync(cur, { withFileTypes: true });
+    for (const e of entries) {
+      const full = path.join(cur, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!e.isFile()) continue;
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function gateArtifactSizeBytes(repoRoot) {
+  const dir = path.join(repoRoot, "artifacts", "gates");
+  let total = 0;
+  for (const f of listFilesRecursive(dir)) {
+    total += fs.statSync(f).size;
+  }
+  return total;
+}
+
+function getActiveInvariants(repoRoot) {
+  const state = readJsonLike(path.join(repoRoot, "spec", "state.yaml"));
+  const plan = readJsonLike(path.join(repoRoot, "spec", "phase-plan.yaml"));
+  const invDoc = readJsonLike(path.join(repoRoot, "spec", "invariants.yaml"));
+
+  const phaseByPr = new Map();
+  for (const p of plan.phases) phaseByPr.set(p.pr_id, p.phase);
+
+  const currentPhase = state.current_phase;
+  const active = [];
+  for (const inv of invDoc.invariants) {
+    const actPr = inv.activation.pr_id;
+    const phase = phaseByPr.get(actPr);
+    if (!Number.isInteger(phase)) fail(`activation pr_id not found: ${inv.id} ${actPr}`);
+    if (phase <= currentPhase) active.push(inv);
+  }
+  active.sort((a, b) => a.id.localeCompare(b.id));
+  return { currentPhase, active };
+}
+
+function invariantHandlers(repoRoot) {
+  const repo = (p) => path.join(repoRoot, p);
+
+  function existsFile(rel) {
+    if (!fs.existsSync(repo(rel))) fail(`missing file: ${rel}`);
+  }
+
+  function existsDir(rel) {
+    const p = repo(rel);
+    if (!fs.existsSync(p)) fail(`missing directory: ${rel}`);
+    const st = fs.statSync(p);
+    if (!st.isDirectory()) fail(`not a directory: ${rel}`);
+  }
+
+  function readJson(rel) {
+    return readJsonLike(repo(rel));
+  }
+
+  function scanTree(dirRel, regex, label) {
+    const absRoot = repo(dirRel);
+    if (!fs.existsSync(absRoot)) return;
+    const stack = [absRoot];
+    while (stack.length > 0) {
+      const cur = stack.pop();
+      const entries = fs.readdirSync(cur, { withFileTypes: true });
+      for (const e of entries) {
+        const full = path.join(cur, e.name);
+        const rel = path.relative(repoRoot, full);
+        if (e.isDirectory()) {
+          if (e.name === "node_modules") continue;
+          if (e.name === ".git") continue;
+          if (e.name === "dist") continue;
+          if (e.name === "artifacts") continue;
+          stack.push(full);
+          continue;
+        }
+        if (!e.isFile()) continue;
+        const ext = path.extname(full).toLowerCase();
+        const isText = [".ts", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml", ".txt"].includes(ext);
+        if (!isText) continue;
+        const text = readText(full);
+        if (regex.test(text)) fail(`scan violation ${label} in ${rel}`);
+      }
+    }
+  }
+
+  function treeFiles(dirRel) {
+    const absRoot = repo(dirRel);
+    return listFilesRecursive(absRoot);
+  }
+
+  function requireTreeMatch(dirRel, regex, label) {
+    const files = treeFiles(dirRel);
+    for (const full of files) {
+      const ext = path.extname(full).toLowerCase();
+      if (![".ts", ".js", ".mjs", ".cjs", ".md", ".json", ".txt", ".yaml", ".yml"].includes(ext)) continue;
+      const text = readText(full);
+      if (regex.test(text)) return;
+    }
+    fail(`required pattern missing ${label} in ${dirRel}`);
+  }
+
+  function collectEntrypointExportNames(entrypoints) {
+    const names = new Set();
+
+    for (const rel of entrypoints) {
+      if (!fs.existsSync(repo(rel))) continue;
+      const t = readText(repo(rel));
+
+      const declRe = /^export\s+(?:async\s+)?(?:const|let|var|function|class|type|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+      for (const m of t.matchAll(declRe)) names.add(m[1]);
+
+      const listRe = /^export\s*\{([^}]+)\}/gm;
+      for (const m of t.matchAll(listRe)) {
+        const parts = m[1].split(",").map((x) => x.trim()).filter((x) => x.length > 0);
+        for (const p of parts) {
+          const aliasMatch = p.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/);
+          if (!aliasMatch) continue;
+          names.add(aliasMatch[2] || aliasMatch[1]);
+        }
+      }
+    }
+
+    return [...names];
+  }
+
+  const handlers = new Map();
+
+  handlers.set("INV-QUAL-0001", () => {
+    existsFile("LICENSE");
+    const t = readText(repo("LICENSE"));
+    if (!t.includes("MIT License")) fail("LICENSE missing MIT License marker.");
+  });
+
+  handlers.set("INV-QUAL-0002", () => {
+    const pkg = readJson("package.json");
+    const deps = pkg.dependencies;
+    const ok = deps && typeof deps === "object" && !Array.isArray(deps) && Object.keys(deps).length === 0;
+    if (!ok) fail("package.json dependencies MUST be an empty object.");
+  });
+
+  handlers.set("INV-QUAL-0003", () => {
+    const pkg = readJson("package.json");
+    if (Object.prototype.hasOwnProperty.call(pkg, "optionalDependencies")) fail("package.json optionalDependencies MUST be absent.");
+  });
+
+  handlers.set("INV-QUAL-0004", () => {
+    const pkg = readJson("package.json");
+    if (Object.prototype.hasOwnProperty.call(pkg, "peerDependencies")) fail("package.json peerDependencies MUST be absent.");
+  });
+
+  handlers.set("INV-QUAL-0005", () => {
+    const pkg = readJson("package.json");
+    if (pkg.type !== "module") fail("package.json type MUST equal module.");
+  });
+
+  function checkExportsHas(pkg, key) {
+    if (!pkg.exports) fail("package.json exports missing.");
+    if (!Object.prototype.hasOwnProperty.call(pkg.exports, key)) fail(`package.json exports missing ${key}.`);
+  }
+
+  handlers.set("INV-QUAL-0006", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, ".");
+  });
+
+  handlers.set("INV-QUAL-0007", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./node");
+  });
+
+  handlers.set("INV-QUAL-0008", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./deno");
+  });
+
+  handlers.set("INV-QUAL-0009", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./bun");
+  });
+
+  handlers.set("INV-QUAL-0010", () => {
+    const pkg = readJson("package.json");
+    if (pkg.exports && Object.prototype.hasOwnProperty.call(pkg.exports, "./browser")) fail("package.json exports MUST NOT include ./browser.");
+  });
+
+  function checkJsrExportsHas(jsr, key) {
+    if (!jsr.exports) fail("jsr.json exports missing.");
+    if (!Object.prototype.hasOwnProperty.call(jsr.exports, key)) fail(`jsr.json exports missing ${key}.`);
+  }
+
+  handlers.set("INV-QUAL-0011", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, ".");
+  });
+
+  handlers.set("INV-QUAL-0012", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./node");
+  });
+
+  handlers.set("INV-QUAL-0013", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./deno");
+  });
+
+  handlers.set("INV-QUAL-0014", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./bun");
+  });
+
+  handlers.set("INV-QUAL-0015", () => {
+    existsFile(".github/workflows/ci.yml");
+  });
+
+  handlers.set("INV-QUAL-0016", () => {
+    existsFile(".github/workflows/pr-policy.yml");
+  });
+
+  handlers.set("INV-QUAL-0017", () => {
+    existsFile("scripts/check");
+  });
+
+  handlers.set("INV-QUAL-0018", () => {
+    existsFile("scripts/banned_token_scan");
+  });
+
+  handlers.set("INV-QUAL-0019", () => {
+    existsFile("scripts/pr_policy_check");
+  });
+
+  handlers.set("INV-QUAL-0020", () => {
+    existsFile("spec/phase-plan.yaml");
+  });
+
+  handlers.set("INV-QUAL-0021", () => {
+    existsFile("spec/state.yaml");
+  });
+
+  handlers.set("INV-QUAL-0022", () => {
+    existsFile("docs/spec-ideal-state.md");
+  });
+
+  handlers.set("INV-QUAL-0023", () => {
+    existsFile("docs/spec-development-process.md");
+  });
+
+  handlers.set("INV-QUAL-0024", () => {
+    existsFile("README.md");
+  });
+
+  handlers.set("INV-QUAL-0025", () => {
+    existsFile("SECURITY.md");
+  });
+
+  handlers.set("INV-QUAL-0026", () => {
+    existsFile("CONTRIBUTING.md");
+  });
+
+  handlers.set("INV-QUAL-0027", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"])')) {
+      fail("publish_dry_run MUST run npx jsr publish --dry-run.");
+    }
+  });
+
+  handlers.set("INV-QUAL-0028", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (!t.includes('run("npm", ["pack"])')) fail("publish_dry_run MUST run npm pack.");
+  });
+
+  handlers.set("INV-QUAL-0029", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (t.includes("--allow-slow-types")) fail("publish_dry_run MUST NOT use --allow-slow-types.");
+  });
+
+  handlers.set("INV-QUAL-0030", () => {
+    const state = readJson("spec/state.yaml");
+    if (!Number.isInteger(state.current_phase)) fail("spec/state.yaml current_phase type mismatch.");
+  });
+
+  handlers.set("INV-QUAL-0031", () => {
+    existsFile("scripts/pr_policy_check");
+    const t = readText(repo("scripts/pr_policy_check"));
+    if (!t.includes('changed.includes("spec/phase-plan.yaml")')) {
+      fail("pr_policy_check MUST enforce immutable phase-plan after phase 1.");
+    }
+  });
+
+  handlers.set("INV-QUAL-0032", () => {
+    const entrypoints = ["src/index.ts", "src/node.ts", "src/deno.ts", "src/bun.ts"];
+    const names = collectEntrypointExportNames(entrypoints);
+    const testFiles = treeFiles("tests").filter((f) => /\.(ts|js|mjs|cjs)$/i.test(f));
+
+    if (testFiles.length === 0) fail("tests directory has no test files.");
+    requireTreeMatch("tests", /\bINV-[A-Z]{4}-[0-9]{4}\b/, "tests-invariant-id-token");
+
+    const aggregate = testFiles.map((f) => readText(f)).join("\n");
+    for (const name of names) {
+      if (!aggregate.includes(name)) {
+        fail(`missing export name coverage in tests: ${name}`);
+      }
+    }
+  });
+
+  handlers.set("INV-QUAL-0033", () => {
+    existsFile("scripts/contract_check");
+    existsFile("docs/api-contract.md");
+    run("node", ["scripts/contract_check"], { cwd: repoRoot });
+  });
+
+  handlers.set("INV-QUAL-0034", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('node-version: "22.x"')) fail("ci.yml MUST include node-version 22.x.");
+  });
+
+  handlers.set("INV-QUAL-0035", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('node-version: "24.x"')) fail("ci.yml MUST include node-version 24.x.");
+  });
+
+  handlers.set("INV-QUAL-0036", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('deno-version: "2.6.x"')) fail("ci.yml MUST include deno-version 2.6.x.");
+  });
+
+  handlers.set("INV-QUAL-0037", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('bun-version: "1.3.0"')) fail("ci.yml MUST include bun-version 1.3.0.");
+  });
+
+  handlers.set("INV-QUAL-0038", () => {
+    existsFile("package-lock.json");
+  });
+
+  handlers.set("INV-ARCH-0001", () => {
+    existsDir("src");
+    existsDir("src/core");
+    existsDir("src/ports");
+    existsDir("src/adapters");
+  });
+
+  handlers.set("INV-ARCH-0002", () => {
+    scanTree("src/core", /\bfrom\s+["']node:/i, "core-node-colon-import");
+    scanTree("src/core", /\brequire\(\s*["']node:/i, "core-node-colon-require");
+    scanTree("src/core", /\bfrom\s+["'](?:fs|path|os|net|tls|http|https|child_process|worker_threads|dgram|dns|readline|url|stream|zlib|crypto|buffer|perf_hooks|events|vm|module|timers|util|assert|tty)(?:\/[^"']*)?["']/i, "core-node-runtime-import");
+    scanTree("src/core", /\bfrom\s+["']bun(?::[^"']*)?["']/i, "core-bun-runtime-import");
+    scanTree("src/core", /\bfrom\s+["']deno:[^"']+["']/i, "core-deno-runtime-import");
+  });
+
+  handlers.set("INV-ARCH-0003", () => {
+    scanTree("src/core", /\bfrom\s+["'][^"']*\/adapters\//i, "core-imports-adapters");
+  });
+
+  handlers.set("INV-ARCH-0004", () => {
+    const files = treeFiles("src/ports");
+    for (const full of files) {
+      if (!/\.(ts|mts|cts|js|mjs|cjs)$/i.test(full)) continue;
+      const rel = path.relative(repoRoot, full);
+      const t = readText(full);
+      if (/\bexport\s+(?:default|const|let|var|function|class|enum)\b/.test(t)) {
+        fail(`ports runtime export detected: ${rel}`);
+      }
+    }
+  });
+
+  handlers.set("INV-ARCH-0005", () => {
+    const entrypoints = ["src/index.ts", "src/node.ts", "src/deno.ts", "src/bun.ts"];
+    for (const rel of entrypoints) {
+      existsFile(rel);
+      const t = readText(repo(rel));
+      if (t.includes("export *")) fail(`entrypoint contains export *: ${rel}`);
+    }
+  });
+
+  handlers.set("INV-SECU-0001", () => {
+    scanTree(".", /\beval\s*\(/i, "eval");
+  });
+
+  handlers.set("INV-SECU-0002", () => {
+    scanTree(".", /\bnew\s+Function\s*\(/, "Function");
+    scanTree(".", /\bFunction\s*\(/, "Function");
+  });
+
+  handlers.set("INV-SECU-0003", () => {
+    scanTree("src", /\bchild_process\b/i, "child_process");
+    scanTree("src", /\bDeno\.Command\b/i, "Deno.Command");
+    scanTree("src", /\bBun\.spawn\b/i, "Bun.spawn");
+  });
+
+  handlers.set("INV-SECU-0004", () => {
+    scanTree("tests", /https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i, "non-local-network-url-tests");
+    scanTree("scripts", /https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i, "non-local-network-url-scripts");
+    scanTree("tests", /--allow-net=(?!127\.0\.0\.1|localhost)/i, "non-local-network-allow-net-tests");
+    scanTree("scripts", /--allow-net=(?!127\.0\.0\.1|localhost)/i, "non-local-network-allow-net-scripts");
+  });
+
+  handlers.set("INV-SECU-0011", () => {
+    scanTree("src/core", /\bprocess\.env\b/, "core-process-env");
+    scanTree("src/core", /\bDeno\.env\b/, "core-deno-env");
+    scanTree("src/core", /\bBun\.env\b/, "core-bun-env");
+    scanTree("src/core", /\bimport\.meta\.env\b/, "core-import-meta-env");
+  });
+
+  handlers.set("INV-SECU-0012", () => {
+    scanTree("src", /\bprompt\s*\(/i, "prompt");
+    scanTree("src", /\bconfirm\s*\(/i, "confirm");
+    scanTree("src", /\breadline\b/i, "readline");
+    scanTree("src", /\binquirer\b/i, "inquirer");
+  });
+
+  handlers.set("INV-QUAL-0040", () => {
+    const t = readText(repo("scripts/check"));
+    if (!t.includes("duration_ms")) fail("check gate MUST write duration metrics.");
+    if (!t.includes("artifact_size_bytes")) fail("check gate MUST write artifact size metrics.");
+  });
+
+  handlers.set("INV-QUAL-0041", () => {
+    existsDir("tests/conformance");
+    requireTreeMatch("tests/conformance", /\bgit\s+(?:fsck|verify-pack|show-ref|rev-parse|cat-file)\b/i, "conformance-git-cli-baseline");
+  });
+
+  handlers.set("INV-FEAT-0005", () => {
+    existsFile("src/core/crypto/hash.ts");
+    requireTreeMatch("src/core/crypto", /\bSHA-1\b|\bsha1\b/i, "sha1-core-support");
+    requireTreeMatch("tests", /\bINV-FEAT-0005\b/, "inv-feat-0005-tests-token");
+    requireTreeMatch("tests", /\bgit\s+hash-object\b/i, "git-hash-object-baseline");
+  });
+
+  handlers.set("INV-FEAT-0006", () => {
+    existsFile("src/core/crypto/hash.ts");
+    requireTreeMatch("src/core/crypto", /\bSHA-256\b|\bsha256\b/i, "sha256-core-support");
+    requireTreeMatch("tests", /\bINV-FEAT-0006\b/, "inv-feat-0006-tests-token");
+    requireTreeMatch("tests", /--object-format=sha256/i, "sha256-git-baseline");
+  });
+
+  handlers.set("INV-FEAT-0007", () => {
+    existsFile("src/ports/compression.ts");
+    existsFile("src/core/compress/limits.ts");
+    existsFile("src/adapters/web-compression.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0007\b/, "inv-feat-0007-tests-token");
+    requireTreeMatch("src/core/compress", /\bmaxInflatedBytes\b/, "inflate-limits-bytes");
+    requireTreeMatch("src/core/compress", /\bmaxInflateRatio\b/, "inflate-limits-ratio");
+  });
+
+  handlers.set("INV-SECU-0006", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b134_?217_?728\b/, "default-max-inflated-bytes");
+    requireTreeMatch("tests", /\bINV-SECU-0006\b/, "inv-secu-0006-tests-token");
+  });
+
+  handlers.set("INV-SECU-0007", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b200\b/, "default-max-inflate-ratio");
+    requireTreeMatch("tests", /\bINV-SECU-0007\b/, "inv-secu-0007-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0001", () => {
+    existsFile("src/index.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0001\b/, "inv-feat-0001-tests-token");
+    requireTreeMatch("tests", /\bfsck\b/i, "git-fsck-baseline");
+  });
+
+  handlers.set("INV-FEAT-0002", () => {
+    existsFile("src/index.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0002\b/, "inv-feat-0002-tests-token");
+    requireTreeMatch("tests", /\binit\b/i, "git-init-baseline");
+  });
+
+  handlers.set("INV-FEAT-0003", () => {
+    existsFile("src/core/objects/loose.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0003\b/, "inv-feat-0003-tests-token");
+    requireTreeMatch("tests", /\bcat-file\b/i, "git-cat-file-baseline-write");
+  });
+
+  handlers.set("INV-FEAT-0004", () => {
+    existsFile("src/core/objects/loose.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0004\b/, "inv-feat-0004-tests-token");
+    requireTreeMatch("tests", /\bcat-file\b/i, "git-cat-file-baseline-read");
+  });
+
+  handlers.set("INV-FEAT-0008", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0008\b/, "inv-feat-0008-tests-token");
+    requireTreeMatch("tests", /\bfsck\b/i, "git-fsck-baseline-e2e");
+  });
+
+  handlers.set("INV-FEAT-0023", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0023\b/, "inv-feat-0023-tests-token");
+    requireTreeMatch("tests", /--show-object-format/, "object-format-probe");
+    requireTreeMatch("tests", /\bsha1\b/, "sha1-format-check");
+  });
+
+  handlers.set("INV-FEAT-0024", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0024\b/, "inv-feat-0024-tests-token");
+    requireTreeMatch("tests", /--show-object-format/, "object-format-probe-sha256");
+    requireTreeMatch("tests", /\bsha256\b/, "sha256-format-check");
+  });
+
+  handlers.set("INV-FEAT-0011", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0011\b/, "inv-feat-0011-tests-token");
+    requireTreeMatch("tests", /\brev-parse\b/i, "rev-parse-head-baseline");
+  });
+
+  handlers.set("INV-FEAT-0012", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0012\b/, "inv-feat-0012-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/i, "show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0013", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0013\b/, "inv-feat-0013-tests-token");
+    requireTreeMatch("tests", /\bpack-refs\b/i, "packed-refs-baseline");
+  });
+
+  handlers.set("INV-FEAT-0014", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0014\b/, "inv-feat-0014-tests-token");
+    requireTreeMatch("tests", /\breflog\b/i, "reflog-entry-baseline");
+  });
+
+  handlers.set("INV-FEAT-0015", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0015\b/, "inv-feat-0015-tests-token");
+    requireTreeMatch("tests", /\bDIRC\b/, "index-v2-header-check");
+  });
+
+  handlers.set("INV-FEAT-0016", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0016\b/, "inv-feat-0016-tests-token");
+    requireTreeMatch("tests", /\.add\(/, "repo-add-invocation");
+  });
+
+  handlers.set("INV-FEAT-0017", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0017\b/, "inv-feat-0017-tests-token");
+    requireTreeMatch("tests", /\.checkout\(/, "repo-checkout-invocation");
+  });
+
+  handlers.set("INV-FEAT-0018", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0018\b/, "inv-feat-0018-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "checkout-traversal-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0019", () => {
+    existsFile("src/core/status/status.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0019\b/, "inv-feat-0019-tests-token");
+    requireTreeMatch("tests", /deepEqual\(statusA,\s*statusB\)/, "status-determinism-check");
+  });
+
+  handlers.set("INV-FEAT-0009", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\breadObjectFromPack\b/, "repo-read-object-from-pack");
+    requireTreeMatch("tests", /\bINV-FEAT-0009\b/, "inv-feat-0009-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0010", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\bwritePackBundle\b/, "repo-write-pack-bundle");
+    requireTreeMatch("tests", /\bverify-pack\b/i, "git-verify-pack-baseline");
+    requireTreeMatch("tests", /\bINV-FEAT-0010\b/, "inv-feat-0010-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0020", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0020\b/, "inv-feat-0020-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack&x=1/, "discovery-multi-query-reject");
+  });
+
+  handlers.set("INV-FEAT-0021", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bfetchHttp\b/, "repo-fetch-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0021\b/, "inv-feat-0021-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack/, "fetch-http-service-query");
+  });
+
+  handlers.set("INV-FEAT-0022", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bpushHttp\b/, "repo-push-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0022\b/, "inv-feat-0022-tests-token");
+    requireTreeMatch("tests", /service=git-receive-pack/, "push-http-service-query");
+  });
+
+  handlers.set("INV-OPER-0001", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-OPER-0001\b/, "inv-oper-0001-tests-token");
+    requireTreeMatch("src", /\bonProgress\b/, "network-progress-callback");
+  });
+
+  handlers.set("INV-SECU-0005", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65520\b/, "pkt-line-total-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0005\b/, "inv-secu-0005-tests-token");
+  });
+
+  handlers.set("INV-SECU-0008", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b50\b/, "default-max-delta-chain-depth");
+    requireTreeMatch("tests", /\bINV-SECU-0008\b/, "inv-secu-0008-tests-token");
+  });
+
+  handlers.set("INV-SECU-0009", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65516\b/, "pkt-line-data-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0009\b/, "inv-secu-0009-tests-token");
+  });
+
+  handlers.set("INV-SECU-0010", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-SECU-0010\b/, "inv-secu-0010-tests-token");
+    requireTreeMatch("src/core/network", /\bservice query parameter\b/, "discovery-service-required");
+  });
+
+  handlers.set("INV-FEAT-0025", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bfetchSsh\b/, "repo-fetch-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0025\b/, "inv-feat-0025-tests-token");
+    requireTreeMatch("tests", /\bupload-pack\b/, "upload-pack-negotiation-token");
+  });
+
+  handlers.set("INV-FEAT-0026", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bpushSsh\b/, "repo-push-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0026\b/, "inv-feat-0026-tests-token");
+    requireTreeMatch("tests", /\breceive-pack\b/, "receive-pack-negotiation-token");
+    requireTreeMatch("tests", /\brefspec\b/, "refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0027", () => {
+    existsFile("src/core/config/resolve-config.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0027\b/, "inv-feat-0027-tests-token");
+    requireTreeMatch("src/core/config", /\bsystem\b/, "config-system-scope");
+    requireTreeMatch("src/core/config", /\bglobal\b/, "config-global-scope");
+    requireTreeMatch("src/core/config", /\blocal\b/, "config-local-scope");
+    requireTreeMatch("src/core/config", /\bworktree\b/, "config-worktree-scope");
+  });
+
+  handlers.set("INV-FEAT-0028", () => {
+    existsFile("src/core/hooks/run-hook.ts");
+    existsFile("src/ports/hook.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0028\b/, "inv-feat-0028-tests-token");
+    requireTreeMatch("tests", /\bargv\b/, "hook-argv-token");
+    requireTreeMatch("tests", /\bstdin\b/, "hook-stdin-token");
+    requireTreeMatch("tests", /\benv\b/, "hook-env-token");
+  });
+
+  handlers.set("INV-SECU-0013", () => {
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src/core/network", /\bredactSecret\b/, "credential-redaction-token");
+    requireTreeMatch("tests", /\bINV-SECU-0013\b/, "inv-secu-0013-tests-token");
+    requireTreeMatch("tests", /every\(\(event\) => !String\(event\.message/, "progress-redaction-assertion");
+  });
+
+  handlers.set("INV-FEAT-0029", () => {
+    existsFile("src/core/merge/merge.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0029\b/, "inv-feat-0029-tests-token");
+    requireTreeMatch("tests", /\bfast-forward\b/, "merge-fast-forward-token");
+    requireTreeMatch("tests", /\bmerge-commit\b/, "merge-commit-token");
+  });
+
+  handlers.set("INV-FEAT-0030", () => {
+    existsFile("src/core/rebase/rebase-state.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0030\b/, "inv-feat-0030-tests-token");
+    requireTreeMatch("tests", /\brebaseContinue\b/, "rebase-continue-token");
+    requireTreeMatch("tests", /\brebaseAbort\b/, "rebase-abort-token");
+  });
+
+  handlers.set("INV-FEAT-0031", () => {
+    existsFile("src/core/cherry-pick/cherry-pick.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0031\b/, "inv-feat-0031-tests-token");
+    requireTreeMatch("tests", /\bcherryPick\b/, "cherry-pick-token");
+  });
+
+  handlers.set("INV-FEAT-0032", () => {
+    existsFile("src/core/revert/revert.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0032\b/, "inv-feat-0032-tests-token");
+    requireTreeMatch("tests", /\brevert\b/, "revert-token");
+  });
+
+  handlers.set("INV-FEAT-0033", () => {
+    existsFile("src/core/stash/stash.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0033\b/, "inv-feat-0033-tests-token");
+    requireTreeMatch("tests", /stash@\{0\}/, "stash-ref-token");
+    requireTreeMatch("tests", /\bstashDrop\b/, "stash-drop-token");
+  });
+
+  handlers.set("INV-FEAT-0034", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("src", /\bcreateBranch\b/, "repo-create-branch-method");
+    requireTreeMatch("src", /\bcreateTag\b/, "repo-create-tag-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0034\b/, "inv-feat-0034-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "branch-tag-show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0035", () => {
+    existsFile("src/core/remote/remote-config.ts");
+    requireTreeMatch("src", /\bsetRemote\b/, "repo-set-remote-method");
+    requireTreeMatch("src", /\blistRemotes\b/, "repo-list-remotes-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0035\b/, "inv-feat-0035-tests-token");
+    requireTreeMatch("tests", /\bfetchRefspec\b/, "remote-fetch-refspec-token");
+    requireTreeMatch("tests", /\bpushRefspec\b/, "remote-push-refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0036", () => {
+    existsFile("src/core/revision-walk/walk.ts");
+    requireTreeMatch("src", /\brevisionWalk\b/, "repo-revision-walk-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0036\b/, "inv-feat-0036-tests-token");
+    requireTreeMatch("tests", /\btopo\b/, "revision-walk-topo-token");
+    requireTreeMatch("tests", /\breverse\b/, "revision-walk-reverse-token");
+  });
+
+  handlers.set("INV-FEAT-0037", () => {
+    existsFile("src/core/log/log.ts");
+    requireTreeMatch("src", /\blog\(/, "repo-log-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0037\b/, "inv-feat-0037-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "log-oid-token");
+    requireTreeMatch("tests", /\bparent\b/, "log-parent-token");
+    requireTreeMatch("tests", /\bauthor\b/, "log-author-token");
+    requireTreeMatch("tests", /\bcommitter\b/, "log-committer-token");
+  });
+
+  handlers.set("INV-QUAL-0039", () => {
+    existsFile("docs/api.md");
+    requireTreeMatch("docs", /\bcreateBranch\b/, "api-contract-create-branch");
+    requireTreeMatch("docs", /\bcreateTag\b/, "api-contract-create-tag");
+    requireTreeMatch("docs", /\bsetRemote\b/, "api-contract-set-remote");
+    requireTreeMatch("docs", /\blistRemotes\b/, "api-contract-list-remotes");
+    requireTreeMatch("docs", /\brevisionWalk\b/, "api-contract-revision-walk");
+    requireTreeMatch("docs", /\blog\b/, "api-contract-log");
+  });
+
+  handlers.set("INV-FEAT-0038", () => {
+    existsFile("src/core/diff/unified.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0038\b/, "inv-feat-0038-tests-token");
+    requireTreeMatch("tests", /@@ -1,2 \+1,3 @@/, "unified-hunk-header-token");
+  });
+
+  handlers.set("INV-FEAT-0039", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0039\b/, "inv-feat-0039-tests-token");
+    requireTreeMatch("src", /\bapplyPatch\b/, "repo-apply-patch-method");
+    requireTreeMatch("tests", /\breverse\b/, "apply-reverse-token");
+    requireTreeMatch("tests", /\bupdateIndex\b/, "apply-update-index-token");
+  });
+
+  handlers.set("INV-FEAT-0040", () => {
+    existsFile("src/core/blame/blame.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0040\b/, "inv-feat-0040-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "blame-oid-token");
+    requireTreeMatch("tests", /\bauthor\b/, "blame-author-token");
+  });
+
+  handlers.set("INV-SECU-0014", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("src/core/apply", /\bassertSafeWorktreePath\b/, "apply-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0014\b/, "inv-secu-0014-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape\.txt/, "apply-escape-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0041", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    requireTreeMatch("src", /\baddSubmodule\b/, "repo-add-submodule-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0041\b/, "inv-feat-0041-tests-token");
+    requireTreeMatch("tests", /\bgitlinkOid\b/, "submodule-gitlink-token");
+  });
+
+  handlers.set("INV-FEAT-0042", () => {
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src", /\baddWorktree\b/, "repo-add-worktree-method");
+    requireTreeMatch("src", /\bpruneWorktrees\b/, "repo-prune-worktrees-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0042\b/, "inv-feat-0042-tests-token");
+    requireTreeMatch("tests", /\bprune\b/, "worktree-prune-token");
+  });
+
+  handlers.set("INV-SECU-0015", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src/core/submodule", /\bassertSafeWorktreePath\b/, "submodule-path-safety-token");
+    requireTreeMatch("src/core/worktree", /\bassertSafeWorktreePath\b/, "worktree-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0015\b/, "inv-secu-0015-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "submodule-worktree-escape-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0043", () => {
+    existsFile("src/core/sparse-checkout/rules.ts");
+    requireTreeMatch("src", /\bsetSparseCheckout\b/, "repo-set-sparse-checkout-method");
+    requireTreeMatch("src", /\bsparseCheckoutSelect\b/, "repo-sparse-checkout-select-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0043\b/, "inv-feat-0043-tests-token");
+    requireTreeMatch("tests", /\bsparse-checkout\b/i, "sparse-checkout-baseline");
+  });
+
+  handlers.set("INV-FEAT-0044", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src/core/partial-clone", /\bnegotiatePartialCloneFilter\b/, "partial-clone-filter-negotiation-token");
+    requireTreeMatch("src", /\bsetPromisorObject\b/, "repo-set-promisor-object-method");
+    requireTreeMatch("src", /\bresolvePromisedObject\b/, "repo-resolve-promised-object-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0044\b/, "inv-feat-0044-tests-token");
+    requireTreeMatch("tests", /--filter=blob:none/, "partial-clone-filter-baseline");
+  });
+
+  handlers.set("INV-SECU-0016", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src", /\bINTEGRITY_ERROR\b/, "partial-clone-integrity-error-token");
+    requireTreeMatch("tests", /\bINV-SECU-0016\b/, "inv-secu-0016-tests-token");
+    requireTreeMatch("tests", /\bmissing\b/, "promised-object-missing-token");
+    requireTreeMatch("tests", /\bmalformed\b/, "promised-object-malformed-token");
+    requireTreeMatch("tests", /\bINTEGRITY_ERROR\b/, "promised-object-integrity-error-token");
+  });
+
+  handlers.set("INV-FEAT-0045", () => {
+    existsFile("src/core/commit-graph/file.ts");
+    requireTreeMatch("src", /\bwriteCommitGraph\b/, "repo-write-commit-graph-method");
+    requireTreeMatch("src", /\breadCommitGraph\b/, "repo-read-commit-graph-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0045\b/, "inv-feat-0045-tests-token");
+    requireTreeMatch("tests", /\bcommit-graph\b/, "commit-graph-token");
+    requireTreeMatch("tests", /\bverify\b/, "commit-graph-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0046", () => {
+    existsFile("src/core/multi-pack-index/file.ts");
+    requireTreeMatch("src", /\bwriteMultiPackIndex\b/, "repo-write-multi-pack-index-method");
+    requireTreeMatch("src", /\breadMultiPackIndex\b/, "repo-read-multi-pack-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0046\b/, "inv-feat-0046-tests-token");
+    requireTreeMatch("tests", /\bmulti-pack-index\b/, "multi-pack-index-token");
+    requireTreeMatch("tests", /\bverify\b/, "multi-pack-index-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0047", () => {
+    existsFile("src/core/bitmap/file.ts");
+    requireTreeMatch("src", /\bwriteBitmapIndex\b/, "repo-write-bitmap-index-method");
+    requireTreeMatch("src", /\breadBitmapIndex\b/, "repo-read-bitmap-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0047\b/, "inv-feat-0047-tests-token");
+    requireTreeMatch("tests", /\bbitmap\b/, "bitmap-token");
+    requireTreeMatch("tests", /\brev-list\b/, "bitmap-reachability-token");
+  });
+
+  handlers.set("INV-FEAT-0048", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\brunMaintenance\b/, "repo-run-maintenance-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0048\b/, "inv-feat-0048-tests-token");
+    requireTreeMatch("tests", /\bgc\b/, "maintenance-gc-token");
+    requireTreeMatch("tests", /\brepack\b/, "maintenance-repack-token");
+    requireTreeMatch("tests", /\bprune\b/, "maintenance-prune-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "maintenance-show-ref-token");
+  });
+
+  handlers.set("INV-OPER-0003", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\bonProgress\b/, "maintenance-progress-callback-token");
+    requireTreeMatch("tests", /\bINV-OPER-0003\b/, "inv-oper-0003-tests-token");
+    requireTreeMatch("tests", /\["gc", "repack", "prune"\]/, "maintenance-progress-order-token");
+  });
+
+  handlers.set("INV-FEAT-0049", () => {
+    existsFile("src/core/signatures/verify.ts");
+    existsFile("src/ports/signature.ts");
+    requireTreeMatch("src", /\bverifyCommitSignature\b/, "repo-verify-commit-signature-method");
+    requireTreeMatch("src", /\bverifyTagSignature\b/, "repo-verify-tag-signature-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0049\b/, "inv-feat-0049-tests-token");
+    requireTreeMatch("tests", /\bSIGNATURE_INVALID\b/, "signature-invalid-token");
+  });
+
+  handlers.set("INV-FEAT-0050", () => {
+    existsFile("src/core/attributes/attributes.ts");
+    existsFile("src/core/ignore/ignore.ts");
+    requireTreeMatch("src", /\bevaluateAttributes\b/, "repo-evaluate-attributes-method");
+    requireTreeMatch("src", /\bevaluateIgnore\b/, "repo-evaluate-ignore-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0050\b/, "inv-feat-0050-tests-token");
+    requireTreeMatch("tests", /\bcheck-ignore\b/, "check-ignore-baseline-token");
+    requireTreeMatch("tests", /\bcheck-attr\b/, "check-attr-baseline-token");
+  });
+
+  handlers.set("INV-FEAT-0051", () => {
+    existsFile("src/core/notes/notes.ts");
+    existsFile("src/core/replace/replace.ts");
+    requireTreeMatch("src", /\baddNote\b/, "repo-add-note-method");
+    requireTreeMatch("src", /\bgetNote\b/, "repo-get-note-method");
+    requireTreeMatch("src", /\baddReplace\b/, "repo-add-replace-method");
+    requireTreeMatch("src", /\bresolveReplace\b/, "repo-resolve-replace-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0051\b/, "inv-feat-0051-tests-token");
+    requireTreeMatch("tests", /\bgit notes\b/, "git-notes-token");
+    requireTreeMatch("tests", /\bgit replace\b/, "git-replace-token");
+  });
+
+  handlers.set("INV-FEAT-0052", () => {
+    existsFile("src/core/protocol/capabilities.ts");
+    requireTreeMatch("src", /\bnegotiateTransportCapabilities\b/, "repo-negotiate-transport-capabilities-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0052\b/, "inv-feat-0052-tests-token");
+    requireTreeMatch("tests", /\bgit-upload-pack\b/, "git-upload-pack-capability-token");
+    requireTreeMatch("tests", /\bgit-receive-pack\b/, "git-receive-pack-capability-token");
+  });
+
+  return handlers;
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const args = parseArgs(process.argv);
+  const runtimeId = runtimeIdFromArgs(args);
+  const startedAtMs = Date.now();
+  const evidenceSchema = readEvidenceSchema(repoRoot);
+
+  ensureDir(path.join(repoRoot, "artifacts", "gates"));
+
+  run("node", ["scripts/banned_token_scan"], { cwd: repoRoot });
+  run("node", ["scripts/pr_policy_check"], { cwd: repoRoot });
+
+  run("npm", ["run", "-s", "lint"], { cwd: repoRoot });
+  run("npm", ["run", "-s", "typecheck"], { cwd: repoRoot });
+  run("npm", ["run", "-s", "build"], { cwd: repoRoot });
+
+  if (args.runtime === "node") run("npm", ["run", "-s", "test:node"], { cwd: repoRoot });
+  if (args.runtime === "deno") run("npm", ["run", "-s", "test:deno"], { cwd: repoRoot });
+  if (args.runtime === "bun") run("npm", ["run", "-s", "test:bun"], { cwd: repoRoot });
+
+  if (args.mode === "publish") run("npm", ["run", "-s", "publish:dry-run"], { cwd: repoRoot });
+
+  const { active } = getActiveInvariants(repoRoot);
+  const handlers = invariantHandlers(repoRoot);
+  const activeById = new Map(active.map((inv) => [inv.id, inv]));
+  const specialId = "INV-OPER-0002";
+
+  for (const inv of active) {
+    if (inv.id === specialId) continue;
+    const h = handlers.get(inv.id);
+    if (!h) {
+      if (inv.proof_obligation.verification_method === "gate-script") fail(`missing gate handler for ${inv.id}`);
+      continue;
+    }
+    const details = h() || {};
+    writeEvidence(repoRoot, inv, "pass", runtimeId, {
+      method: inv.proof_obligation.verification_method,
+      ...details,
+    });
+  }
+
+  const evidenceDir = path.join(repoRoot, "artifacts", "gates");
+  const missingBeforeSpecial = [];
+  for (const inv of active) {
+    if (inv.id === specialId) continue;
+    const p = path.join(evidenceDir, `${inv.id}.json`);
+    if (!fs.existsSync(p)) missingBeforeSpecial.push(inv.id);
+  }
+  if (missingBeforeSpecial.length > 0) fail(`missing evidence artifacts: ${missingBeforeSpecial.join(", ")}`);
+
+  const metricsInv = activeById.get("INV-QUAL-0040");
+  if (metricsInv && metricsInv.proof_obligation.verification_method === "gate-script") {
+    const durationMs = Date.now() - startedAtMs;
+    const artifactSizeBytes = gateArtifactSizeBytes(repoRoot);
+    writeEvidence(repoRoot, metricsInv, "pass", runtimeId, {
+      method: "gate-script",
+      duration_ms: durationMs,
+      artifact_size_bytes: artifactSizeBytes,
+    });
+  }
+
+  const specialInv = activeById.get(specialId);
+  if (!specialInv) fail(`${specialId} missing from active invariant set.`);
+  writeEvidence(repoRoot, specialInv, "pass", runtimeId, {
+    method: "gate-script",
+    active_invariant_count: active.length,
+    evidence_artifact_count: listFilesRecursive(evidenceDir).length,
+  });
+
+  const finalMissing = [];
+  for (const inv of active) {
+    const p = path.join(evidenceDir, `${inv.id}.json`);
+    if (!fs.existsSync(p)) finalMissing.push(inv.id);
+  }
+  if (finalMissing.length > 0) fail(`missing evidence artifacts: ${finalMissing.join(", ")}`);
+
+  validateEvidenceArtifacts(repoRoot, active, runtimeId, evidenceSchema);
+
+  process.stdout.write("OK check\n");
+}
+
+main();
