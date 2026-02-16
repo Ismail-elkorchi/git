@@ -9,12 +9,7 @@ function fail(message) {
 }
 
 function readJsonLike(absPath) {
-  const text = fs.readFileSync(absPath, "utf8");
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    fail(`JSON parse failure: ${absPath}`);
-  }
+  return JSON.parse(fs.readFileSync(absPath, "utf8"));
 }
 
 function run(cmd, args) {

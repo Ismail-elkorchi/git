@@ -10,11 +10,7 @@ function fail(message) {
 
 function readJsonLike(absPath) {
   const text = fs.readFileSync(absPath, "utf8");
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    fail(`JSON parse failure: ${absPath}`);
-  }
+  return JSON.parse(text);
 }
 
 function globToRegex(glob) {
@@ -44,13 +40,11 @@ function readBaseStatePhase(repoRoot, baseRef) {
   const res = spawnSync("git", ["show", `origin/${baseRef}:spec/state.yaml`], { cwd: repoRoot, encoding: "utf8" });
   if (res.status !== 0) return 0;
   const text = res.stdout || "";
-  try {
-    const obj = JSON.parse(text);
-    if (!Number.isInteger(obj.current_phase)) return 0;
-    return obj.current_phase;
-  } catch (e) {
-    return 0;
-  }
+  const m = text.match(/"current_phase"\s*:\s*([0-9]+)/);
+  if (!m) return 0;
+  const n = Number(m[1]);
+  if (!Number.isInteger(n)) return 0;
+  return n;
 }
 
 function readPullRequestPayload() {

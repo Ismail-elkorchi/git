@@ -39,14 +39,6 @@ function isScannableFile(relPath) {
   return true;
 }
 
-function readFileTextSafe(absPath) {
-  try {
-    return fs.readFileSync(absPath, "utf8");
-  } catch (e) {
-    return null;
-  }
-}
-
 function main() {
   const repoRoot = process.cwd();
   const tokens = readBannedTokens(repoRoot);
@@ -57,8 +49,7 @@ function main() {
 
   for (const rel of files) {
     const abs = path.join(repoRoot, rel);
-    const text = readFileTextSafe(abs);
-    if (text === null) continue;
+    const text = fs.readFileSync(abs, "utf8");
     for (const { token, re } of regexes) {
       if (re.test(text)) violations.push({ file: rel, token });
     }

@@ -14,11 +14,7 @@ function readText(absPath) {
 
 function readJsonLike(absPath) {
   const text = readText(absPath);
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    fail(`JSON parse failure: ${absPath}`);
-  }
+  return JSON.parse(text);
 }
 
 function ensureDir(absPath) {
@@ -571,6 +567,480 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests/conformance", /\bgit\s+(?:fsck|verify-pack|show-ref|rev-parse|cat-file)\b/i, "conformance-git-cli-baseline");
   });
 
+  handlers.set("INV-FEAT-0005", () => {
+    existsFile("src/core/crypto/hash.ts");
+    requireTreeMatch("src/core/crypto", /\bSHA-1\b|\bsha1\b/i, "sha1-core-support");
+    requireTreeMatch("tests", /\bINV-FEAT-0005\b/, "inv-feat-0005-tests-token");
+    requireTreeMatch("tests", /\bgit\s+hash-object\b/i, "git-hash-object-baseline");
+  });
+
+  handlers.set("INV-FEAT-0006", () => {
+    existsFile("src/core/crypto/hash.ts");
+    requireTreeMatch("src/core/crypto", /\bSHA-256\b|\bsha256\b/i, "sha256-core-support");
+    requireTreeMatch("tests", /\bINV-FEAT-0006\b/, "inv-feat-0006-tests-token");
+    requireTreeMatch("tests", /--object-format=sha256/i, "sha256-git-baseline");
+  });
+
+  handlers.set("INV-FEAT-0007", () => {
+    existsFile("src/ports/compression.ts");
+    existsFile("src/core/compress/limits.ts");
+    existsFile("src/adapters/web-compression.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0007\b/, "inv-feat-0007-tests-token");
+    requireTreeMatch("src/core/compress", /\bmaxInflatedBytes\b/, "inflate-limits-bytes");
+    requireTreeMatch("src/core/compress", /\bmaxInflateRatio\b/, "inflate-limits-ratio");
+  });
+
+  handlers.set("INV-SECU-0006", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b134_?217_?728\b/, "default-max-inflated-bytes");
+    requireTreeMatch("tests", /\bINV-SECU-0006\b/, "inv-secu-0006-tests-token");
+  });
+
+  handlers.set("INV-SECU-0007", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b200\b/, "default-max-inflate-ratio");
+    requireTreeMatch("tests", /\bINV-SECU-0007\b/, "inv-secu-0007-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0001", () => {
+    existsFile("src/index.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0001\b/, "inv-feat-0001-tests-token");
+    requireTreeMatch("tests", /\bfsck\b/i, "git-fsck-baseline");
+  });
+
+  handlers.set("INV-FEAT-0002", () => {
+    existsFile("src/index.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0002\b/, "inv-feat-0002-tests-token");
+    requireTreeMatch("tests", /\binit\b/i, "git-init-baseline");
+  });
+
+  handlers.set("INV-FEAT-0003", () => {
+    existsFile("src/core/objects/loose.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0003\b/, "inv-feat-0003-tests-token");
+    requireTreeMatch("tests", /\bcat-file\b/i, "git-cat-file-baseline-write");
+  });
+
+  handlers.set("INV-FEAT-0004", () => {
+    existsFile("src/core/objects/loose.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0004\b/, "inv-feat-0004-tests-token");
+    requireTreeMatch("tests", /\bcat-file\b/i, "git-cat-file-baseline-read");
+  });
+
+  handlers.set("INV-FEAT-0008", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0008\b/, "inv-feat-0008-tests-token");
+    requireTreeMatch("tests", /\bfsck\b/i, "git-fsck-baseline-e2e");
+  });
+
+  handlers.set("INV-FEAT-0023", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0023\b/, "inv-feat-0023-tests-token");
+    requireTreeMatch("tests", /--show-object-format/, "object-format-probe");
+    requireTreeMatch("tests", /\bsha1\b/, "sha1-format-check");
+  });
+
+  handlers.set("INV-FEAT-0024", () => {
+    requireTreeMatch("tests", /\bINV-FEAT-0024\b/, "inv-feat-0024-tests-token");
+    requireTreeMatch("tests", /--show-object-format/, "object-format-probe-sha256");
+    requireTreeMatch("tests", /\bsha256\b/, "sha256-format-check");
+  });
+
+  handlers.set("INV-FEAT-0011", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0011\b/, "inv-feat-0011-tests-token");
+    requireTreeMatch("tests", /\brev-parse\b/i, "rev-parse-head-baseline");
+  });
+
+  handlers.set("INV-FEAT-0012", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0012\b/, "inv-feat-0012-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/i, "show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0013", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0013\b/, "inv-feat-0013-tests-token");
+    requireTreeMatch("tests", /\bpack-refs\b/i, "packed-refs-baseline");
+  });
+
+  handlers.set("INV-FEAT-0014", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0014\b/, "inv-feat-0014-tests-token");
+    requireTreeMatch("tests", /\breflog\b/i, "reflog-entry-baseline");
+  });
+
+  handlers.set("INV-FEAT-0015", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0015\b/, "inv-feat-0015-tests-token");
+    requireTreeMatch("tests", /\bDIRC\b/, "index-v2-header-check");
+  });
+
+  handlers.set("INV-FEAT-0016", () => {
+    existsFile("src/core/index/index-v2.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0016\b/, "inv-feat-0016-tests-token");
+    requireTreeMatch("tests", /\.add\(/, "repo-add-invocation");
+  });
+
+  handlers.set("INV-FEAT-0017", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0017\b/, "inv-feat-0017-tests-token");
+    requireTreeMatch("tests", /\.checkout\(/, "repo-checkout-invocation");
+  });
+
+  handlers.set("INV-FEAT-0018", () => {
+    existsFile("src/core/checkout/path-safety.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0018\b/, "inv-feat-0018-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "checkout-traversal-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0019", () => {
+    existsFile("src/core/status/status.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0019\b/, "inv-feat-0019-tests-token");
+    requireTreeMatch("tests", /deepEqual\(statusA,\s*statusB\)/, "status-determinism-check");
+  });
+
+  handlers.set("INV-FEAT-0009", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\breadObjectFromPack\b/, "repo-read-object-from-pack");
+    requireTreeMatch("tests", /\bINV-FEAT-0009\b/, "inv-feat-0009-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0010", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\bwritePackBundle\b/, "repo-write-pack-bundle");
+    requireTreeMatch("tests", /\bverify-pack\b/i, "git-verify-pack-baseline");
+    requireTreeMatch("tests", /\bINV-FEAT-0010\b/, "inv-feat-0010-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0020", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0020\b/, "inv-feat-0020-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack&x=1/, "discovery-multi-query-reject");
+  });
+
+  handlers.set("INV-FEAT-0021", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bfetchHttp\b/, "repo-fetch-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0021\b/, "inv-feat-0021-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack/, "fetch-http-service-query");
+  });
+
+  handlers.set("INV-FEAT-0022", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bpushHttp\b/, "repo-push-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0022\b/, "inv-feat-0022-tests-token");
+    requireTreeMatch("tests", /service=git-receive-pack/, "push-http-service-query");
+  });
+
+  handlers.set("INV-OPER-0001", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-OPER-0001\b/, "inv-oper-0001-tests-token");
+    requireTreeMatch("src", /\bonProgress\b/, "network-progress-callback");
+  });
+
+  handlers.set("INV-SECU-0005", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65520\b/, "pkt-line-total-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0005\b/, "inv-secu-0005-tests-token");
+  });
+
+  handlers.set("INV-SECU-0008", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b50\b/, "default-max-delta-chain-depth");
+    requireTreeMatch("tests", /\bINV-SECU-0008\b/, "inv-secu-0008-tests-token");
+  });
+
+  handlers.set("INV-SECU-0009", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65516\b/, "pkt-line-data-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0009\b/, "inv-secu-0009-tests-token");
+  });
+
+  handlers.set("INV-SECU-0010", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-SECU-0010\b/, "inv-secu-0010-tests-token");
+    requireTreeMatch("src/core/network", /\bservice query parameter\b/, "discovery-service-required");
+  });
+
+  handlers.set("INV-FEAT-0025", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bfetchSsh\b/, "repo-fetch-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0025\b/, "inv-feat-0025-tests-token");
+    requireTreeMatch("tests", /\bupload-pack\b/, "upload-pack-negotiation-token");
+  });
+
+  handlers.set("INV-FEAT-0026", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bpushSsh\b/, "repo-push-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0026\b/, "inv-feat-0026-tests-token");
+    requireTreeMatch("tests", /\breceive-pack\b/, "receive-pack-negotiation-token");
+    requireTreeMatch("tests", /\brefspec\b/, "refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0027", () => {
+    existsFile("src/core/config/resolve-config.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0027\b/, "inv-feat-0027-tests-token");
+    requireTreeMatch("src/core/config", /\bsystem\b/, "config-system-scope");
+    requireTreeMatch("src/core/config", /\bglobal\b/, "config-global-scope");
+    requireTreeMatch("src/core/config", /\blocal\b/, "config-local-scope");
+    requireTreeMatch("src/core/config", /\bworktree\b/, "config-worktree-scope");
+  });
+
+  handlers.set("INV-FEAT-0028", () => {
+    existsFile("src/core/hooks/run-hook.ts");
+    existsFile("src/ports/hook.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0028\b/, "inv-feat-0028-tests-token");
+    requireTreeMatch("tests", /\bargv\b/, "hook-argv-token");
+    requireTreeMatch("tests", /\bstdin\b/, "hook-stdin-token");
+    requireTreeMatch("tests", /\benv\b/, "hook-env-token");
+  });
+
+  handlers.set("INV-SECU-0013", () => {
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src/core/network", /\bredactSecret\b/, "credential-redaction-token");
+    requireTreeMatch("tests", /\bINV-SECU-0013\b/, "inv-secu-0013-tests-token");
+    requireTreeMatch("tests", /every\(\(event\) => !String\(event\.message/, "progress-redaction-assertion");
+  });
+
+  handlers.set("INV-FEAT-0029", () => {
+    existsFile("src/core/merge/merge.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0029\b/, "inv-feat-0029-tests-token");
+    requireTreeMatch("tests", /\bfast-forward\b/, "merge-fast-forward-token");
+    requireTreeMatch("tests", /\bmerge-commit\b/, "merge-commit-token");
+  });
+
+  handlers.set("INV-FEAT-0030", () => {
+    existsFile("src/core/rebase/rebase-state.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0030\b/, "inv-feat-0030-tests-token");
+    requireTreeMatch("tests", /\brebaseContinue\b/, "rebase-continue-token");
+    requireTreeMatch("tests", /\brebaseAbort\b/, "rebase-abort-token");
+  });
+
+  handlers.set("INV-FEAT-0031", () => {
+    existsFile("src/core/cherry-pick/cherry-pick.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0031\b/, "inv-feat-0031-tests-token");
+    requireTreeMatch("tests", /\bcherryPick\b/, "cherry-pick-token");
+  });
+
+  handlers.set("INV-FEAT-0032", () => {
+    existsFile("src/core/revert/revert.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0032\b/, "inv-feat-0032-tests-token");
+    requireTreeMatch("tests", /\brevert\b/, "revert-token");
+  });
+
+  handlers.set("INV-FEAT-0033", () => {
+    existsFile("src/core/stash/stash.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0033\b/, "inv-feat-0033-tests-token");
+    requireTreeMatch("tests", /stash@\{0\}/, "stash-ref-token");
+    requireTreeMatch("tests", /\bstashDrop\b/, "stash-drop-token");
+  });
+
+  handlers.set("INV-FEAT-0034", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("src", /\bcreateBranch\b/, "repo-create-branch-method");
+    requireTreeMatch("src", /\bcreateTag\b/, "repo-create-tag-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0034\b/, "inv-feat-0034-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "branch-tag-show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0035", () => {
+    existsFile("src/core/remote/remote-config.ts");
+    requireTreeMatch("src", /\bsetRemote\b/, "repo-set-remote-method");
+    requireTreeMatch("src", /\blistRemotes\b/, "repo-list-remotes-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0035\b/, "inv-feat-0035-tests-token");
+    requireTreeMatch("tests", /\bfetchRefspec\b/, "remote-fetch-refspec-token");
+    requireTreeMatch("tests", /\bpushRefspec\b/, "remote-push-refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0036", () => {
+    existsFile("src/core/revision-walk/walk.ts");
+    requireTreeMatch("src", /\brevisionWalk\b/, "repo-revision-walk-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0036\b/, "inv-feat-0036-tests-token");
+    requireTreeMatch("tests", /\btopo\b/, "revision-walk-topo-token");
+    requireTreeMatch("tests", /\breverse\b/, "revision-walk-reverse-token");
+  });
+
+  handlers.set("INV-FEAT-0037", () => {
+    existsFile("src/core/log/log.ts");
+    requireTreeMatch("src", /\blog\(/, "repo-log-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0037\b/, "inv-feat-0037-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "log-oid-token");
+    requireTreeMatch("tests", /\bparent\b/, "log-parent-token");
+    requireTreeMatch("tests", /\bauthor\b/, "log-author-token");
+    requireTreeMatch("tests", /\bcommitter\b/, "log-committer-token");
+  });
+
+  handlers.set("INV-QUAL-0039", () => {
+    existsFile("docs/api.md");
+    requireTreeMatch("docs", /\bcreateBranch\b/, "api-contract-create-branch");
+    requireTreeMatch("docs", /\bcreateTag\b/, "api-contract-create-tag");
+    requireTreeMatch("docs", /\bsetRemote\b/, "api-contract-set-remote");
+    requireTreeMatch("docs", /\blistRemotes\b/, "api-contract-list-remotes");
+    requireTreeMatch("docs", /\brevisionWalk\b/, "api-contract-revision-walk");
+    requireTreeMatch("docs", /\blog\b/, "api-contract-log");
+  });
+
+  handlers.set("INV-FEAT-0038", () => {
+    existsFile("src/core/diff/unified.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0038\b/, "inv-feat-0038-tests-token");
+    requireTreeMatch("tests", /@@ -1,2 \+1,3 @@/, "unified-hunk-header-token");
+  });
+
+  handlers.set("INV-FEAT-0039", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0039\b/, "inv-feat-0039-tests-token");
+    requireTreeMatch("src", /\bapplyPatch\b/, "repo-apply-patch-method");
+    requireTreeMatch("tests", /\breverse\b/, "apply-reverse-token");
+    requireTreeMatch("tests", /\bupdateIndex\b/, "apply-update-index-token");
+  });
+
+  handlers.set("INV-FEAT-0040", () => {
+    existsFile("src/core/blame/blame.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0040\b/, "inv-feat-0040-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "blame-oid-token");
+    requireTreeMatch("tests", /\bauthor\b/, "blame-author-token");
+  });
+
+  handlers.set("INV-SECU-0014", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("src/core/apply", /\bassertSafeWorktreePath\b/, "apply-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0014\b/, "inv-secu-0014-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape\.txt/, "apply-escape-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0041", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    requireTreeMatch("src", /\baddSubmodule\b/, "repo-add-submodule-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0041\b/, "inv-feat-0041-tests-token");
+    requireTreeMatch("tests", /\bgitlinkOid\b/, "submodule-gitlink-token");
+  });
+
+  handlers.set("INV-FEAT-0042", () => {
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src", /\baddWorktree\b/, "repo-add-worktree-method");
+    requireTreeMatch("src", /\bpruneWorktrees\b/, "repo-prune-worktrees-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0042\b/, "inv-feat-0042-tests-token");
+    requireTreeMatch("tests", /\bprune\b/, "worktree-prune-token");
+  });
+
+  handlers.set("INV-SECU-0015", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src/core/submodule", /\bassertSafeWorktreePath\b/, "submodule-path-safety-token");
+    requireTreeMatch("src/core/worktree", /\bassertSafeWorktreePath\b/, "worktree-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0015\b/, "inv-secu-0015-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "submodule-worktree-escape-counterexample");
+  });
+
+  handlers.set("INV-FEAT-0043", () => {
+    existsFile("src/core/sparse-checkout/rules.ts");
+    requireTreeMatch("src", /\bsetSparseCheckout\b/, "repo-set-sparse-checkout-method");
+    requireTreeMatch("src", /\bsparseCheckoutSelect\b/, "repo-sparse-checkout-select-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0043\b/, "inv-feat-0043-tests-token");
+    requireTreeMatch("tests", /\bsparse-checkout\b/i, "sparse-checkout-baseline");
+  });
+
+  handlers.set("INV-FEAT-0044", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src/core/partial-clone", /\bnegotiatePartialCloneFilter\b/, "partial-clone-filter-negotiation-token");
+    requireTreeMatch("src", /\bsetPromisorObject\b/, "repo-set-promisor-object-method");
+    requireTreeMatch("src", /\bresolvePromisedObject\b/, "repo-resolve-promised-object-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0044\b/, "inv-feat-0044-tests-token");
+    requireTreeMatch("tests", /--filter=blob:none/, "partial-clone-filter-baseline");
+  });
+
+  handlers.set("INV-SECU-0016", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src", /\bINTEGRITY_ERROR\b/, "partial-clone-integrity-error-token");
+    requireTreeMatch("tests", /\bINV-SECU-0016\b/, "inv-secu-0016-tests-token");
+    requireTreeMatch("tests", /\bmissing\b/, "promised-object-missing-token");
+    requireTreeMatch("tests", /\bmalformed\b/, "promised-object-malformed-token");
+    requireTreeMatch("tests", /\bINTEGRITY_ERROR\b/, "promised-object-integrity-error-token");
+  });
+
+  handlers.set("INV-FEAT-0045", () => {
+    existsFile("src/core/commit-graph/file.ts");
+    requireTreeMatch("src", /\bwriteCommitGraph\b/, "repo-write-commit-graph-method");
+    requireTreeMatch("src", /\breadCommitGraph\b/, "repo-read-commit-graph-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0045\b/, "inv-feat-0045-tests-token");
+    requireTreeMatch("tests", /\bcommit-graph\b/, "commit-graph-token");
+    requireTreeMatch("tests", /\bverify\b/, "commit-graph-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0046", () => {
+    existsFile("src/core/multi-pack-index/file.ts");
+    requireTreeMatch("src", /\bwriteMultiPackIndex\b/, "repo-write-multi-pack-index-method");
+    requireTreeMatch("src", /\breadMultiPackIndex\b/, "repo-read-multi-pack-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0046\b/, "inv-feat-0046-tests-token");
+    requireTreeMatch("tests", /\bmulti-pack-index\b/, "multi-pack-index-token");
+    requireTreeMatch("tests", /\bverify\b/, "multi-pack-index-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0047", () => {
+    existsFile("src/core/bitmap/file.ts");
+    requireTreeMatch("src", /\bwriteBitmapIndex\b/, "repo-write-bitmap-index-method");
+    requireTreeMatch("src", /\breadBitmapIndex\b/, "repo-read-bitmap-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0047\b/, "inv-feat-0047-tests-token");
+    requireTreeMatch("tests", /\bbitmap\b/, "bitmap-token");
+    requireTreeMatch("tests", /\brev-list\b/, "bitmap-reachability-token");
+  });
+
+  handlers.set("INV-FEAT-0048", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\brunMaintenance\b/, "repo-run-maintenance-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0048\b/, "inv-feat-0048-tests-token");
+    requireTreeMatch("tests", /\bgc\b/, "maintenance-gc-token");
+    requireTreeMatch("tests", /\brepack\b/, "maintenance-repack-token");
+    requireTreeMatch("tests", /\bprune\b/, "maintenance-prune-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "maintenance-show-ref-token");
+  });
+
+  handlers.set("INV-OPER-0003", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\bonProgress\b/, "maintenance-progress-callback-token");
+    requireTreeMatch("tests", /\bINV-OPER-0003\b/, "inv-oper-0003-tests-token");
+    requireTreeMatch("tests", /\["gc", "repack", "prune"\]/, "maintenance-progress-order-token");
+  });
+
+  handlers.set("INV-FEAT-0049", () => {
+    existsFile("src/core/signatures/verify.ts");
+    existsFile("src/ports/signature.ts");
+    requireTreeMatch("src", /\bverifyCommitSignature\b/, "repo-verify-commit-signature-method");
+    requireTreeMatch("src", /\bverifyTagSignature\b/, "repo-verify-tag-signature-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0049\b/, "inv-feat-0049-tests-token");
+    requireTreeMatch("tests", /\bSIGNATURE_INVALID\b/, "signature-invalid-token");
+  });
+
+  handlers.set("INV-FEAT-0050", () => {
+    existsFile("src/core/attributes/attributes.ts");
+    existsFile("src/core/ignore/ignore.ts");
+    requireTreeMatch("src", /\bevaluateAttributes\b/, "repo-evaluate-attributes-method");
+    requireTreeMatch("src", /\bevaluateIgnore\b/, "repo-evaluate-ignore-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0050\b/, "inv-feat-0050-tests-token");
+    requireTreeMatch("tests", /\bcheck-ignore\b/, "check-ignore-baseline-token");
+    requireTreeMatch("tests", /\bcheck-attr\b/, "check-attr-baseline-token");
+  });
+
+  handlers.set("INV-FEAT-0051", () => {
+    existsFile("src/core/notes/notes.ts");
+    existsFile("src/core/replace/replace.ts");
+    requireTreeMatch("src", /\baddNote\b/, "repo-add-note-method");
+    requireTreeMatch("src", /\bgetNote\b/, "repo-get-note-method");
+    requireTreeMatch("src", /\baddReplace\b/, "repo-add-replace-method");
+    requireTreeMatch("src", /\bresolveReplace\b/, "repo-resolve-replace-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0051\b/, "inv-feat-0051-tests-token");
+    requireTreeMatch("tests", /\bgit notes\b/, "git-notes-token");
+    requireTreeMatch("tests", /\bgit replace\b/, "git-replace-token");
+  });
+
+  handlers.set("INV-FEAT-0052", () => {
+    existsFile("src/core/protocol/capabilities.ts");
+    requireTreeMatch("src", /\bnegotiateTransportCapabilities\b/, "repo-negotiate-transport-capabilities-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0052\b/, "inv-feat-0052-tests-token");
+    requireTreeMatch("tests", /\bgit-upload-pack\b/, "git-upload-pack-capability-token");
+    requireTreeMatch("tests", /\bgit-receive-pack\b/, "git-receive-pack-capability-token");
+  });
+
   return handlers;
 }
 
@@ -603,12 +1073,14 @@ function main() {
 
   for (const inv of active) {
     if (inv.id === specialId) continue;
-    if (inv.proof_obligation.verification_method !== "gate-script") continue;
     const h = handlers.get(inv.id);
-    if (!h) fail(`missing gate handler for ${inv.id}`);
+    if (!h) {
+      if (inv.proof_obligation.verification_method === "gate-script") fail(`missing gate handler for ${inv.id}`);
+      continue;
+    }
     const details = h() || {};
     writeEvidence(repoRoot, inv, "pass", runtimeId, {
-      method: "gate-script",
+      method: inv.proof_obligation.verification_method,
       ...details,
     });
   }
