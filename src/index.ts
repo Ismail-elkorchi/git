@@ -30,6 +30,12 @@ import {
 } from "./core/objects/loose.js";
 import { packFileNames } from "./core/pack/pack-files.js";
 import {
+	defaultPartialCloneState,
+	negotiatePartialCloneFilter,
+	normalizePartialCloneState,
+	type PartialCloneState,
+} from "./core/partial-clone/promisor.js";
+import {
 	abortRebaseState,
 	continueRebaseState,
 	type RebaseState,
@@ -52,6 +58,11 @@ import {
 	type WalkMode,
 	walkCommits,
 } from "./core/revision-walk/walk.js";
+import {
+	normalizeSparseRules,
+	type SparseCheckoutMode,
+	selectSparsePaths,
+} from "./core/sparse-checkout/rules.js";
 import {
 	addStashEntry,
 	dropStashEntry,
@@ -346,6 +357,18 @@ export class Repo {
 		return joinFsPath(this.gitDirPath, "worktrees-codex.json");
 	}
 
+	private sparseCheckoutPath(): string {
+		return joinFsPath(this.gitDirPath, "info", "sparse-checkout");
+	}
+
+	private sparseCheckoutStatePath(): string {
+		return joinFsPath(this.gitDirPath, "info", "sparse-checkout-codex.json");
+	}
+
+	private partialCloneStatePath(): string {
+		return joinFsPath(this.gitDirPath, "partial-clone-codex.json");
+	}
+
 	private async readRebaseState(
 		fs: NodeFsPromises,
 	): Promise<RebaseState | null> {
@@ -366,6 +389,137 @@ export class Repo {
 	): Promise<void> {
 		const statePath = this.rebaseStatePath();
 		await fs.mkdir(parentFsPath(statePath), { recursive: true });
+		await fs.writeFile(statePath, JSON.stringify(state, null, 2), {
+			encoding: "utf8",
+		});
+	}
+
+	private async readSparseCheckoutState(
+		fs: NodeFsPromises,
+	): Promise<{ mode: SparseCheckoutMode; rules: string[] } | null> {
+		const statePath = this.sparseCheckoutStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return null;
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new GitError(
+				"sparse-checkout state malformed",
+				"OBJECT_FORMAT_ERROR",
+				{
+					statePath,
+				},
+			);
+		}
+
+		const record = parsed as Record<string, unknown>;
+		const mode = record.mode;
+		if (mode !== "cone" && mode !== "pattern") {
+			throw new GitError(
+				"sparse-checkout mode invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					statePath,
+				},
+			);
+		}
+
+		const rawRules = record.rules;
+		if (!Array.isArray(rawRules)) {
+			throw new GitError(
+				"sparse-checkout rules invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					statePath,
+				},
+			);
+		}
+		const ruleValues = rawRules.filter(
+			(item): item is string => typeof item === "string",
+		);
+		if (ruleValues.length !== rawRules.length) {
+			throw new GitError(
+				"sparse-checkout rules malformed",
+				"OBJECT_FORMAT_ERROR",
+				{
+					statePath,
+				},
+			);
+		}
+
+		return {
+			mode,
+			rules: normalizeSparseRules(ruleValues),
+		};
+	}
+
+	private async writeSparseCheckoutState(
+		fs: NodeFsPromises,
+		mode: SparseCheckoutMode,
+		rules: string[],
+	): Promise<void> {
+		const normalizedRules = normalizeSparseRules(rules);
+		const statePath = this.sparseCheckoutStatePath();
+		await fs.mkdir(parentFsPath(statePath), { recursive: true });
+		await fs.writeFile(
+			statePath,
+			JSON.stringify(
+				{
+					mode,
+					rules: normalizedRules,
+				},
+				null,
+				2,
+			),
+			{
+				encoding: "utf8",
+			},
+		);
+		await fs.writeFile(
+			this.sparseCheckoutPath(),
+			`${normalizedRules.join("\n")}\n`,
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
+	private async readPartialCloneState(
+		fs: NodeFsPromises,
+	): Promise<PartialCloneState> {
+		const statePath = this.partialCloneStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) {
+			return {
+				filterSpec: defaultPartialCloneState.filterSpec,
+				capabilities: [...defaultPartialCloneState.capabilities],
+				promisorObjects: { ...defaultPartialCloneState.promisorObjects },
+			};
+		}
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text) as unknown;
+		const normalized = normalizePartialCloneState(parsed);
+		if (!normalized) {
+			throw new GitError("partial clone state malformed", "INTEGRITY_ERROR", {
+				statePath,
+			});
+		}
+		return normalized;
+	}
+
+	private async writePartialCloneState(
+		fs: NodeFsPromises,
+		state: PartialCloneState,
+	): Promise<void> {
+		const statePath = this.partialCloneStatePath();
 		await fs.writeFile(statePath, JSON.stringify(state, null, 2), {
 			encoding: "utf8",
 		});
@@ -893,6 +1047,91 @@ export class Repo {
 		const fs = await loadNodeFs();
 		const current = await this.readWorktreeEntries(fs);
 		await this.writeWorktreeEntries(fs, pruneWorktrees(current));
+	}
+
+	public async setSparseCheckout(
+		mode: SparseCheckoutMode,
+		rules: string[],
+	): Promise<string[]> {
+		if (mode !== "cone" && mode !== "pattern") {
+			throw new GitError("sparse-checkout mode invalid", "INVALID_ARGUMENT", {
+				mode,
+			});
+		}
+		const normalizedRules = normalizeSparseRules(rules);
+		if (normalizedRules.length === 0) {
+			throw new GitError("sparse-checkout rules empty", "INVALID_ARGUMENT", {
+				mode,
+			});
+		}
+		const fs = await loadNodeFs();
+		await this.writeSparseCheckoutState(fs, mode, normalizedRules);
+		return normalizedRules;
+	}
+
+	public async sparseCheckoutSelect(paths: string[]): Promise<string[]> {
+		const fs = await loadNodeFs();
+		const state = await this.readSparseCheckoutState(fs);
+		if (!state) {
+			return selectSparsePaths(paths, "cone", ["."]);
+		}
+		return selectSparsePaths(paths, state.mode, state.rules);
+	}
+
+	public async negotiatePartialCloneFilter(
+		requestedFilter: string,
+		capabilities: string[],
+	): Promise<string> {
+		const acceptedFilter = negotiatePartialCloneFilter(
+			requestedFilter,
+			capabilities,
+		);
+		const fs = await loadNodeFs();
+		const state = await this.readPartialCloneState(fs);
+		state.filterSpec = acceptedFilter;
+		state.capabilities = capabilities
+			.map((capability) => capability.trim())
+			.filter((capability) => capability.length > 0);
+		await this.writePartialCloneState(fs, state);
+		return acceptedFilter;
+	}
+
+	public async setPromisorObject(
+		oid: string,
+		payload: Uint8Array | string,
+	): Promise<void> {
+		if (!isObjectId(oid)) {
+			throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
+		}
+		const fs = await loadNodeFs();
+		const state = await this.readPartialCloneState(fs);
+		state.promisorObjects[oid] = [...toBytes(payload)];
+		await this.writePartialCloneState(fs, state);
+	}
+
+	public async resolvePromisedObject(oid: string): Promise<Uint8Array> {
+		if (!isObjectId(oid)) {
+			throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
+		}
+		const fs = await loadNodeFs();
+		const state = await this.readPartialCloneState(fs);
+		const promised = state.promisorObjects[oid];
+		if (!promised) {
+			throw new GitError("promised object missing", "INTEGRITY_ERROR", { oid });
+		}
+		if (!Array.isArray(promised) || promised.length === 0) {
+			throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
+				oid,
+			});
+		}
+		for (const item of promised) {
+			if (!Number.isInteger(item) || item < 0 || item > 255) {
+				throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
+					oid,
+				});
+			}
+		}
+		return Uint8Array.from(promised);
 	}
 
 	public revisionWalk(commits: CommitNode[], mode: WalkMode): CommitNode[] {
