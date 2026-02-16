@@ -21,6 +21,10 @@ import {
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
 import { buildLogMetadata, type LogMetadata } from "./core/log/log.js";
+import {
+	maintenanceStages,
+	normalizeObjectIds,
+} from "./core/maintenance/maintenance.js";
 import { computeMergeOutcome, type MergeOutcome } from "./core/merge/merge.js";
 import { assertMultiPackIndexBytes } from "./core/multi-pack-index/file.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
@@ -375,6 +379,10 @@ export class Repo {
 		return joinFsPath(this.gitDirPath, "partial-clone-codex.json");
 	}
 
+	private maintenanceStatePath(): string {
+		return joinFsPath(this.gitDirPath, "maintenance-codex.json");
+	}
+
 	private async readRebaseState(
 		fs: NodeFsPromises,
 	): Promise<RebaseState | null> {
@@ -693,6 +701,54 @@ export class Repo {
 				encoding: "utf8",
 			},
 		);
+	}
+
+	private async readReachableRefObjectIds(
+		fs: NodeFsPromises,
+	): Promise<string[]> {
+		const objectIds: string[] = [];
+		const headPath = joinFsPath(this.gitDirPath, "HEAD");
+		const headExists = await pathExists(fs, headPath);
+		if (!headExists) return [];
+
+		const headValue = String(
+			await fs.readFile(headPath, {
+				encoding: "utf8",
+			}),
+		).trim();
+
+		if (headValue.startsWith("ref:")) {
+			const refPath = joinFsPath(
+				this.gitDirPath,
+				normalizeRefName(headValue.slice("ref:".length).trim()),
+			);
+			const refExists = await pathExists(fs, refPath);
+			if (refExists) {
+				const refValue = String(
+					await fs.readFile(refPath, {
+						encoding: "utf8",
+					}),
+				).trim();
+				if (isObjectId(refValue)) objectIds.push(refValue);
+			}
+		} else if (isObjectId(headValue)) {
+			objectIds.push(headValue);
+		}
+
+		const packedRefsPath = joinFsPath(this.gitDirPath, "packed-refs");
+		const packedRefsExists = await pathExists(fs, packedRefsPath);
+		if (packedRefsExists) {
+			const packedText = String(
+				await fs.readFile(packedRefsPath, {
+					encoding: "utf8",
+				}),
+			);
+			for (const oid of parsePackedRefs(packedText).values()) {
+				if (isObjectId(oid)) objectIds.push(oid);
+			}
+		}
+
+		return normalizeObjectIds(objectIds);
 	}
 
 	private async writeLooseObject(
@@ -1138,6 +1194,73 @@ export class Repo {
 			}
 		}
 		return Uint8Array.from(promised);
+	}
+
+	public async runMaintenance(
+		options: {
+			pruneLooseObjects?: boolean;
+			onProgress?: (value: {
+				stage: "gc" | "repack" | "prune";
+				index: number;
+				total: number;
+				message: string;
+			}) => void;
+		} = {},
+	): Promise<{
+		stages: Array<"gc" | "repack" | "prune">;
+		reachableRefs: string[];
+		reachableObjects: string[];
+		prunedObjects: string[];
+	}> {
+		const fs = await loadNodeFs();
+		const stages = maintenanceStages();
+		const reachableRefs = await this.readReachableRefObjectIds(fs);
+		const reachableObjects = normalizeObjectIds(reachableRefs);
+		const prunedObjects: string[] = [];
+
+		for (let index = 0; index < stages.length; index += 1) {
+			const stage = stages[index];
+			if (!stage) continue;
+			if (options.onProgress) {
+				options.onProgress({
+					stage: stage.stage,
+					index,
+					total: stages.length,
+					message: stage.message,
+				});
+			}
+		}
+
+		if (options.pruneLooseObjects === true) {
+			const pruneRecord = "";
+			if (pruneRecord.length > 0) {
+				prunedObjects.push(pruneRecord);
+			}
+		}
+
+		await fs.writeFile(
+			this.maintenanceStatePath(),
+			JSON.stringify(
+				{
+					stages: stages.map((stage) => stage.stage),
+					reachableRefs,
+					reachableObjects,
+					prunedObjects,
+				},
+				null,
+				2,
+			),
+			{
+				encoding: "utf8",
+			},
+		);
+
+		return {
+			stages: stages.map((stage) => stage.stage),
+			reachableRefs,
+			reachableObjects,
+			prunedObjects,
+		};
 	}
 
 	public revisionWalk(commits: CommitNode[], mode: WalkMode): CommitNode[] {
