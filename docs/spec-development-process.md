@@ -5,6 +5,7 @@ The repository MUST maintain critical claim mappings in spec/claims.yaml.
 The repository MUST maintain formal logic lens mappings in spec/lens-mapping.yaml.
 The repository MUST maintain parity baseline tracking in docs/parity-baseline.md.
 The repository MUST maintain command-family parity status in docs/parity-matrix.md.
+The repository MUST maintain machine-checkable parity status in spec/parity-roadmap.yaml.
 Each pull request MUST update spec/state.yaml current_phase to the pull request phase number.
 Pull request PR-0001 MUST establish repository scaffolding and CI and policy gates.
 Pull request PR-0002 MUST establish public API contracts and ports and error taxonomy.

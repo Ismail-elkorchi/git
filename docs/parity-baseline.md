@@ -8,6 +8,7 @@ The baseline source MUST be the official git-scm source release index.
 The baseline command surface MUST include command families listed by git help -a.
 The baseline command surface MUST include new documented commands from recent Git docs updates.
 The baseline command-family status MUST be tracked in docs/parity-matrix.md.
+The baseline command-family status MUST be tracked in spec/parity-roadmap.yaml.
 
 ## Latest Command Family Signals
 

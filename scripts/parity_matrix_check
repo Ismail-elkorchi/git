@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function readText(absPath) {
+  return fs.readFileSync(absPath, "utf8");
+}
+
+function readJsonLike(absPath) {
+  return JSON.parse(readText(absPath));
+}
+
+function expectObject(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${label} type invalid.`);
+  }
+}
+
+function parseMatrixRows(markdownText) {
+  const rows = [];
+  const lines = markdownText.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("|")) continue;
+    if (trimmed.includes("| ---")) continue;
+
+    const cells = trimmed
+      .split("|")
+      .slice(1, -1)
+      .map((c) => c.trim());
+    if (cells.length < 2) continue;
+    if (cells[0] === "Command Family" && cells[1] === "State") continue;
+
+    const state = cells[1];
+    if (!["implemented", "partial", "not-implemented"].includes(state)) continue;
+    rows.push({ label: cells[0], state });
+  }
+  return rows;
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const roadmapPath = path.join(repoRoot, "spec", "parity-roadmap.yaml");
+  const schemaPath = path.join(repoRoot, "spec", "parity-roadmap.schema.json");
+  const matrixPath = path.join(repoRoot, "docs", "parity-matrix.md");
+
+  if (!fs.existsSync(roadmapPath)) fail("spec/parity-roadmap.yaml is missing.");
+  if (!fs.existsSync(schemaPath)) fail("spec/parity-roadmap.schema.json is missing.");
+  if (!fs.existsSync(matrixPath)) fail("docs/parity-matrix.md is missing.");
+
+  const schema = readJsonLike(schemaPath);
+  expectObject(schema, "parity roadmap schema");
+  if (!Array.isArray(schema.required)) fail("parity roadmap schema required keys are missing.");
+  const schemaRequired = ["schema_version", "baseline_git_version", "families"];
+  for (const key of schemaRequired) {
+    if (!schema.required.includes(key)) fail(`parity roadmap schema missing required key ${key}.`);
+  }
+
+  const roadmap = readJsonLike(roadmapPath);
+  expectObject(roadmap, "parity roadmap document");
+  if (roadmap.schema_version !== 1) fail("parity roadmap schema_version invalid.");
+  if (
+    typeof roadmap.baseline_git_version !== "string" ||
+    !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(roadmap.baseline_git_version)
+  ) {
+    fail("parity roadmap baseline_git_version invalid.");
+  }
+  if (!Array.isArray(roadmap.families) || roadmap.families.length === 0) {
+    fail("parity roadmap families array invalid.");
+  }
+
+  const allowedSections = new Set([
+    "core-repository-data",
+    "working-tree-and-history",
+    "transport-and-protocol",
+    "newer-git-command-families",
+  ]);
+  const allowedStates = new Set(["implemented", "partial", "not-implemented"]);
+
+  const familyIdSet = new Set();
+  const familyLabelSet = new Set();
+  const roadmapByLabel = new Map();
+
+  for (const family of roadmap.families) {
+    expectObject(family, "parity roadmap family");
+    const keys = Object.keys(family);
+    const allowedKeys = new Set(["id", "section", "matrix_label", "state"]);
+    for (const k of keys) {
+      if (!allowedKeys.has(k)) fail(`parity roadmap family unexpected key ${k}.`);
+    }
+    if (typeof family.id !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(family.id)) {
+      fail("parity roadmap family id invalid.");
+    }
+    if (familyIdSet.has(family.id)) fail(`parity roadmap family id duplicate ${family.id}.`);
+    familyIdSet.add(family.id);
+
+    if (typeof family.section !== "string" || !allowedSections.has(family.section)) {
+      fail(`parity roadmap family section invalid ${family.id}.`);
+    }
+    if (typeof family.matrix_label !== "string" || family.matrix_label.length === 0) {
+      fail(`parity roadmap family matrix_label invalid ${family.id}.`);
+    }
+    if (familyLabelSet.has(family.matrix_label)) {
+      fail(`parity roadmap family matrix_label duplicate ${family.matrix_label}.`);
+    }
+    familyLabelSet.add(family.matrix_label);
+    if (typeof family.state !== "string" || !allowedStates.has(family.state)) {
+      fail(`parity roadmap family state invalid ${family.id}.`);
+    }
+    roadmapByLabel.set(family.matrix_label, family.state);
+  }
+
+  for (const requiredId of ["refs", "repo", "backfill", "replay", "last-modified"]) {
+    if (!familyIdSet.has(requiredId)) fail(`parity roadmap missing required family ${requiredId}.`);
+  }
+
+  const matrixText = readText(matrixPath);
+  if (!matrixText.includes(`Git ${roadmap.baseline_git_version}`)) {
+    fail("parity matrix baseline version mismatch.");
+  }
+
+  const matrixRows = parseMatrixRows(matrixText);
+  if (matrixRows.length === 0) fail("parity matrix contains no command-family rows.");
+
+  const matrixLabelSet = new Set();
+  for (const row of matrixRows) {
+    if (matrixLabelSet.has(row.label)) fail(`parity matrix label duplicate ${row.label}.`);
+    matrixLabelSet.add(row.label);
+    if (!roadmapByLabel.has(row.label)) {
+      fail(`parity matrix row missing from roadmap ${row.label}.`);
+    }
+    const expectedState = roadmapByLabel.get(row.label);
+    if (row.state !== expectedState) {
+      fail(`parity matrix state mismatch ${row.label}: ${row.state} ${expectedState}`);
+    }
+  }
+
+  for (const label of roadmapByLabel.keys()) {
+    if (!matrixLabelSet.has(label)) fail(`parity roadmap row missing from matrix ${label}.`);
+  }
+
+  process.stdout.write("OK parity_matrix_check\n");
+}
+
+main();
