@@ -1,3 +1,3 @@
-export function createNodePorts() {
+export function createNodePorts(): Record<string, never> {
 	return {};
 }

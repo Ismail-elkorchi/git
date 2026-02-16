@@ -1,3 +1,3 @@
-export function createBunPorts() {
+export function createBunPorts(): Record<string, never> {
 	return {};
 }

@@ -1,6 +1,10 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
 import { applyUnifiedPatch } from "./core/apply/patch.js";
 import {
+	evaluateAttributes as evaluateAttributesRules,
+	type GitAttributeValue,
+} from "./core/attributes/attributes.js";
+import {
 	assertBitmapBytes,
 	normalizePackBaseName,
 } from "./core/bitmap/file.js";
@@ -15,6 +19,7 @@ import {
 import { hashGitObject } from "./core/crypto/hash.js";
 import { generateUnifiedPatch } from "./core/diff/unified.js";
 import { buildHookInvocation, runHook } from "./core/hooks/run-hook.js";
+import { evaluateIgnorePatterns } from "./core/ignore/ignore.js";
 import {
 	decodeIndexV2,
 	encodeIndexV2,
@@ -33,6 +38,7 @@ import {
 	buildUploadPackLine,
 	redactSecret,
 } from "./core/network/ssh.js";
+import { dropNote, normalizeNotesState, setNote } from "./core/notes/notes.js";
 import {
 	decodeLooseObject,
 	encodeLooseObject,
@@ -45,6 +51,7 @@ import {
 	normalizePartialCloneState,
 	type PartialCloneState,
 } from "./core/partial-clone/promisor.js";
+import { negotiateCapabilityParity } from "./core/protocol/capabilities.js";
 import {
 	abortRebaseState,
 	continueRebaseState,
@@ -61,6 +68,7 @@ import {
 	type RemoteConfigEntry,
 	upsertRemoteConfig,
 } from "./core/remote/remote-config.js";
+import { normalizeReplaceState, setReplace } from "./core/replace/replace.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
 import { revertCommitPayload } from "./core/revert/revert.js";
 import {
@@ -68,6 +76,7 @@ import {
 	type WalkMode,
 	walkCommits,
 } from "./core/revision-walk/walk.js";
+import { verifySignedPayload } from "./core/signatures/verify.js";
 import {
 	normalizeSparseRules,
 	type SparseCheckoutMode,
@@ -94,6 +103,7 @@ import {
 import type { CompressionPort } from "./ports/compression.js";
 import type { CredentialPort } from "./ports/credential.js";
 import type { HookPort, HookResult } from "./ports/hook.js";
+import type { SignaturePort } from "./ports/signature.js";
 
 export type GitHashAlgorithm = "sha1" | "sha256";
 
@@ -381,6 +391,14 @@ export class Repo {
 
 	private maintenanceStatePath(): string {
 		return joinFsPath(this.gitDirPath, "maintenance-codex.json");
+	}
+
+	private notesStatePath(): string {
+		return joinFsPath(this.gitDirPath, "notes-codex.json");
+	}
+
+	private replaceStatePath(): string {
+		return joinFsPath(this.gitDirPath, "replace-codex.json");
 	}
 
 	private async readRebaseState(
@@ -697,6 +715,62 @@ export class Repo {
 		await fs.writeFile(
 			this.worktreeStatePath(),
 			JSON.stringify(entries, null, 2),
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
+	private async readNotesState(
+		fs: NodeFsPromises,
+	): Promise<Record<string, string>> {
+		const statePath = this.notesStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return {};
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+			return {};
+		return normalizeNotesState(parsed as Record<string, string>);
+	}
+
+	private async writeNotesState(
+		fs: NodeFsPromises,
+		state: Record<string, string>,
+	): Promise<void> {
+		await fs.writeFile(this.notesStatePath(), JSON.stringify(state, null, 2), {
+			encoding: "utf8",
+		});
+	}
+
+	private async readReplaceState(
+		fs: NodeFsPromises,
+	): Promise<Record<string, string>> {
+		const statePath = this.replaceStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return {};
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+			return {};
+		return normalizeReplaceState(parsed as Record<string, string>);
+	}
+
+	private async writeReplaceState(
+		fs: NodeFsPromises,
+		state: Record<string, string>,
+	): Promise<void> {
+		await fs.writeFile(
+			this.replaceStatePath(),
+			JSON.stringify(state, null, 2),
 			{
 				encoding: "utf8",
 			},
@@ -1261,6 +1335,115 @@ export class Repo {
 			reachableObjects,
 			prunedObjects,
 		};
+	}
+
+	public async verifyCommitSignature(
+		payload: string,
+		signature: string,
+		signaturePort: SignaturePort,
+	): Promise<void> {
+		const ok = await verifySignedPayload(payload, signature, signaturePort);
+		if (!ok) {
+			throw new GitError("commit signature invalid", "SIGNATURE_INVALID", {
+				payload,
+			});
+		}
+	}
+
+	public async verifyTagSignature(
+		payload: string,
+		signature: string,
+		signaturePort: SignaturePort,
+	): Promise<void> {
+		const ok = await verifySignedPayload(payload, signature, signaturePort);
+		if (!ok) {
+			throw new GitError("tag signature invalid", "SIGNATURE_INVALID", {
+				payload,
+			});
+		}
+	}
+
+	public evaluateIgnore(pathValue: string, patterns: string[]): boolean {
+		assertSafeWorktreePath(pathValue);
+		return evaluateIgnorePatterns(pathValue, patterns);
+	}
+
+	public evaluateAttributes(
+		pathValue: string,
+		rules: string[],
+	): Record<string, GitAttributeValue> {
+		assertSafeWorktreePath(pathValue);
+		return evaluateAttributesRules(pathValue, rules);
+	}
+
+	public async addNote(targetOid: string, noteOid: string): Promise<void> {
+		if (!isObjectId(targetOid) || !isObjectId(noteOid)) {
+			throw new GitError("notes oid invalid", "INVALID_ARGUMENT", {
+				targetOid,
+				noteOid,
+			});
+		}
+		const fs = await loadNodeFs();
+		const notes = await this.readNotesState(fs);
+		await this.writeNotesState(fs, setNote(notes, targetOid, noteOid));
+	}
+
+	public async getNote(targetOid: string): Promise<string | null> {
+		if (!isObjectId(targetOid)) {
+			throw new GitError("notes target oid invalid", "INVALID_ARGUMENT", {
+				targetOid,
+			});
+		}
+		const fs = await loadNodeFs();
+		const notes = await this.readNotesState(fs);
+		return notes[targetOid.toLowerCase()] ?? null;
+	}
+
+	public async removeNote(targetOid: string): Promise<void> {
+		if (!isObjectId(targetOid)) {
+			throw new GitError("notes target oid invalid", "INVALID_ARGUMENT", {
+				targetOid,
+			});
+		}
+		const fs = await loadNodeFs();
+		const notes = await this.readNotesState(fs);
+		await this.writeNotesState(fs, dropNote(notes, targetOid));
+	}
+
+	public async addReplace(
+		originalOid: string,
+		replacementOid: string,
+	): Promise<void> {
+		if (!isObjectId(originalOid) || !isObjectId(replacementOid)) {
+			throw new GitError("replace oid invalid", "INVALID_ARGUMENT", {
+				originalOid,
+				replacementOid,
+			});
+		}
+		const fs = await loadNodeFs();
+		const replace = await this.readReplaceState(fs);
+		await this.writeReplaceState(
+			fs,
+			setReplace(replace, originalOid, replacementOid),
+		);
+	}
+
+	public async resolveReplace(oid: string): Promise<string> {
+		if (!isObjectId(oid)) {
+			throw new GitError("replace lookup oid invalid", "INVALID_ARGUMENT", {
+				oid,
+			});
+		}
+		const fs = await loadNodeFs();
+		const replace = await this.readReplaceState(fs);
+		return replace[oid.toLowerCase()] ?? oid.toLowerCase();
+	}
+
+	public negotiateTransportCapabilities(
+		httpCapabilities: string[],
+		sshCapabilities: string[],
+	): string[] {
+		return negotiateCapabilityParity(httpCapabilities, sshCapabilities);
 	}
 
 	public revisionWalk(commits: CommitNode[], mode: WalkMode): CommitNode[] {

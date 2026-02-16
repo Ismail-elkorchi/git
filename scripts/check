@@ -404,7 +404,7 @@ function invariantHandlers(repoRoot) {
   handlers.set("INV-QUAL-0027", () => {
     existsFile("scripts/publish_dry_run");
     const t = readText(repo("scripts/publish_dry_run"));
-    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"])')) {
+    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"')) {
       fail("publish_dry_run MUST run npx jsr publish --dry-run.");
     }
   });
@@ -412,7 +412,7 @@ function invariantHandlers(repoRoot) {
   handlers.set("INV-QUAL-0028", () => {
     existsFile("scripts/publish_dry_run");
     const t = readText(repo("scripts/publish_dry_run"));
-    if (!t.includes('run("npm", ["pack"])')) fail("publish_dry_run MUST run npm pack.");
+    if (!t.includes('run("npm", ["pack"')) fail("publish_dry_run MUST run npm pack.");
   });
 
   handlers.set("INV-QUAL-0029", () => {
@@ -1000,6 +1000,45 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("src", /\bonProgress\b/, "maintenance-progress-callback-token");
     requireTreeMatch("tests", /\bINV-OPER-0003\b/, "inv-oper-0003-tests-token");
     requireTreeMatch("tests", /\["gc", "repack", "prune"\]/, "maintenance-progress-order-token");
+  });
+
+  handlers.set("INV-FEAT-0049", () => {
+    existsFile("src/core/signatures/verify.ts");
+    existsFile("src/ports/signature.ts");
+    requireTreeMatch("src", /\bverifyCommitSignature\b/, "repo-verify-commit-signature-method");
+    requireTreeMatch("src", /\bverifyTagSignature\b/, "repo-verify-tag-signature-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0049\b/, "inv-feat-0049-tests-token");
+    requireTreeMatch("tests", /\bSIGNATURE_INVALID\b/, "signature-invalid-token");
+  });
+
+  handlers.set("INV-FEAT-0050", () => {
+    existsFile("src/core/attributes/attributes.ts");
+    existsFile("src/core/ignore/ignore.ts");
+    requireTreeMatch("src", /\bevaluateAttributes\b/, "repo-evaluate-attributes-method");
+    requireTreeMatch("src", /\bevaluateIgnore\b/, "repo-evaluate-ignore-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0050\b/, "inv-feat-0050-tests-token");
+    requireTreeMatch("tests", /\bcheck-ignore\b/, "check-ignore-baseline-token");
+    requireTreeMatch("tests", /\bcheck-attr\b/, "check-attr-baseline-token");
+  });
+
+  handlers.set("INV-FEAT-0051", () => {
+    existsFile("src/core/notes/notes.ts");
+    existsFile("src/core/replace/replace.ts");
+    requireTreeMatch("src", /\baddNote\b/, "repo-add-note-method");
+    requireTreeMatch("src", /\bgetNote\b/, "repo-get-note-method");
+    requireTreeMatch("src", /\baddReplace\b/, "repo-add-replace-method");
+    requireTreeMatch("src", /\bresolveReplace\b/, "repo-resolve-replace-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0051\b/, "inv-feat-0051-tests-token");
+    requireTreeMatch("tests", /\bgit notes\b/, "git-notes-token");
+    requireTreeMatch("tests", /\bgit replace\b/, "git-replace-token");
+  });
+
+  handlers.set("INV-FEAT-0052", () => {
+    existsFile("src/core/protocol/capabilities.ts");
+    requireTreeMatch("src", /\bnegotiateTransportCapabilities\b/, "repo-negotiate-transport-capabilities-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0052\b/, "inv-feat-0052-tests-token");
+    requireTreeMatch("tests", /\bgit-upload-pack\b/, "git-upload-pack-capability-token");
+    requireTreeMatch("tests", /\bgit-receive-pack\b/, "git-receive-pack-capability-token");
   });
 
   return handlers;

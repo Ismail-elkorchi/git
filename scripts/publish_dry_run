@@ -19,6 +19,7 @@ function run(cmd, args) {
 
 function main() {
   const repoRoot = process.cwd();
+  const artifactsDir = path.join(repoRoot, "artifacts");
   const statePath = path.join(repoRoot, "spec", "state.yaml");
   const planPath = path.join(repoRoot, "spec", "phase-plan.yaml");
   if (!fs.existsSync(statePath)) fail("spec/state.yaml is missing.");
@@ -32,8 +33,9 @@ function main() {
     return;
   }
 
-  run("npm", ["pack"]);
-  run("npx", ["jsr", "publish", "--dry-run"]);
+  fs.mkdirSync(artifactsDir, { recursive: true });
+  run("npm", ["pack", "--pack-destination", "artifacts"]);
+  run("npx", ["jsr", "publish", "--dry-run", "--config", "jsr.json"]);
 
   process.stdout.write("OK publish_dry_run\n");
 }
