@@ -1,4 +1,6 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
+import { applyUnifiedPatch } from "./core/apply/patch.js";
+import { type BlameTuple, normalizeBlame } from "./core/blame/blame.js";
 import { assertSafeWorktreePath } from "./core/checkout/path-safety.js";
 import { cherryPickCommitPayload } from "./core/cherry-pick/cherry-pick.js";
 import {
@@ -6,6 +8,7 @@ import {
 	resolveConfig,
 } from "./core/config/resolve-config.js";
 import { hashGitObject } from "./core/crypto/hash.js";
+import { generateUnifiedPatch } from "./core/diff/unified.js";
 import { buildHookInvocation, runHook } from "./core/hooks/run-hook.js";
 import {
 	decodeIndexV2,
@@ -755,6 +758,31 @@ export class Repo {
 			author,
 			committer,
 		);
+	}
+
+	public diff(filePath: string, beforeText: string, afterText: string): string {
+		assertSafeWorktreePath(filePath);
+		return generateUnifiedPatch(filePath, beforeText, afterText);
+	}
+
+	public async applyPatch(
+		patchText: string,
+		options: { reverse?: boolean; updateIndex?: boolean } = {},
+	): Promise<string> {
+		const fs = await loadNodeFs();
+		const worktreePath = this.requireWorktreePath();
+		const applied = applyUnifiedPatch(patchText, options.reverse === true);
+		const absolutePath = joinFsPath(worktreePath, applied.filePath);
+		await fs.mkdir(parentFsPath(absolutePath), { recursive: true });
+		await fs.writeFile(absolutePath, applied.nextText, {
+			encoding: "utf8",
+		});
+		if (options.updateIndex) await this.add([applied.filePath]);
+		return applied.filePath;
+	}
+
+	public blame(lines: string[], blame: BlameTuple[]): BlameTuple[] {
+		return normalizeBlame(blame, lines.length);
 	}
 
 	public async fetchHttp(
