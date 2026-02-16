@@ -1,0 +1,496 @@
+{
+  "schema_version": 1,
+  "total_phases": 18,
+  "phases": [
+    {
+      "phase": 1,
+      "pr_id": "PR-0001",
+      "branch": "repo-scaffolding-and-policy",
+      "title": "Repo scaffolding and policy",
+      "allowed_paths": [
+        ".github/**",
+        "scripts/**",
+        "docs/**",
+        "spec/**",
+        "src/**",
+        "package.json",
+        "jsr.json",
+        "tsconfig.json",
+        "tsconfig.build.json",
+        "biome.json",
+        "deno.json",
+        ".gitignore",
+        "LICENSE",
+        "SECURITY.md",
+        "CONTRIBUTING.md",
+        "CODEOWNERS"
+      ],
+      "denied_paths": [
+        "dist/**",
+        ".codex-pack/**"
+      ],
+      "activated_invariants": [
+        "INV-ARCH-0001",
+        "INV-ARCH-0005",
+        "INV-OPER-0002",
+        "INV-QUAL-0001",
+        "INV-QUAL-0002",
+        "INV-QUAL-0003",
+        "INV-QUAL-0004",
+        "INV-QUAL-0005",
+        "INV-QUAL-0006",
+        "INV-QUAL-0007",
+        "INV-QUAL-0008",
+        "INV-QUAL-0009",
+        "INV-QUAL-0010",
+        "INV-QUAL-0011",
+        "INV-QUAL-0012",
+        "INV-QUAL-0013",
+        "INV-QUAL-0014",
+        "INV-QUAL-0015",
+        "INV-QUAL-0016",
+        "INV-QUAL-0017",
+        "INV-QUAL-0018",
+        "INV-QUAL-0019",
+        "INV-QUAL-0020",
+        "INV-QUAL-0021",
+        "INV-QUAL-0022",
+        "INV-QUAL-0023",
+        "INV-QUAL-0025",
+        "INV-QUAL-0026",
+        "INV-QUAL-0030",
+        "INV-QUAL-0034",
+        "INV-QUAL-0035",
+        "INV-QUAL-0036",
+        "INV-QUAL-0037",
+        "INV-QUAL-0038",
+        "INV-SECU-0001",
+        "INV-SECU-0002",
+        "INV-SECU-0003"
+      ]
+    },
+    {
+      "phase": 2,
+      "pr_id": "PR-0002",
+      "branch": "core-contracts-ports-and-error-model",
+      "title": "Core contracts, ports, and error model",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/contract_check",
+        "scripts/check",
+        "spec/state.yaml",
+        "docs/api.md"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        "docs/spec-ideal-state.md",
+        "docs/spec-development-process.md",
+        ".github/**",
+        "package.json",
+        "jsr.json"
+      ],
+      "activated_invariants": [
+        "INV-ARCH-0002",
+        "INV-ARCH-0003",
+        "INV-ARCH-0004",
+        "INV-QUAL-0031",
+        "INV-QUAL-0032",
+        "INV-QUAL-0033",
+        "INV-SECU-0011",
+        "INV-SECU-0012"
+      ]
+    },
+    {
+      "phase": 3,
+      "pr_id": "PR-0003",
+      "branch": "core-hashing-sha1-sha256",
+      "title": "Core hashing SHA-1 and SHA-256",
+      "allowed_paths": [
+        "src/core/crypto/**",
+        "src/ports/**",
+        "tests/**",
+        "scripts/check",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**",
+        "package.json",
+        "jsr.json"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0005",
+        "INV-FEAT-0006"
+      ]
+    },
+    {
+      "phase": 4,
+      "pr_id": "PR-0004",
+      "branch": "compression-crc32-and-safety-limits",
+      "title": "Compression, CRC32, and safety limits",
+      "allowed_paths": [
+        "src/core/compress/**",
+        "src/ports/**",
+        "src/adapters/**",
+        "tests/**",
+        "scripts/check",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**",
+        "package.json",
+        "jsr.json"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0007",
+        "INV-SECU-0006",
+        "INV-SECU-0007"
+      ]
+    },
+    {
+      "phase": 5,
+      "pr_id": "PR-0005",
+      "branch": "loose-objects-tree-commit-repo-init-open",
+      "title": "Repo init/open and loose objects, tree, commit",
+      "allowed_paths": [
+        "src/core/repo/**",
+        "src/core/objects/**",
+        "src/core/compress/**",
+        "src/core/crypto/**",
+        "src/index.ts",
+        "src/adapters/**",
+        "tests/**",
+        "scripts/check",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0001",
+        "INV-FEAT-0002",
+        "INV-FEAT-0003",
+        "INV-FEAT-0004",
+        "INV-FEAT-0008",
+        "INV-FEAT-0023",
+        "INV-FEAT-0024"
+      ]
+    },
+    {
+      "phase": 6,
+      "pr_id": "PR-0006",
+      "branch": "refs-packed-refs-and-reflog",
+      "title": "Refs, packed-refs, and reflog",
+      "allowed_paths": [
+        "src/core/refs/**",
+        "src/index.ts",
+        "tests/**",
+        "scripts/check",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0011",
+        "INV-FEAT-0012",
+        "INV-FEAT-0013",
+        "INV-FEAT-0014"
+      ]
+    },
+    {
+      "phase": 7,
+      "pr_id": "PR-0007",
+      "branch": "index-add-checkout-status",
+      "title": "Index, add, checkout, status",
+      "allowed_paths": [
+        "src/core/index/**",
+        "src/core/status/**",
+        "src/core/checkout/**",
+        "src/index.ts",
+        "tests/**",
+        "scripts/check",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0015",
+        "INV-FEAT-0016",
+        "INV-FEAT-0017",
+        "INV-FEAT-0018",
+        "INV-FEAT-0019"
+      ]
+    },
+    {
+      "phase": 8,
+      "pr_id": "PR-0008",
+      "branch": "pack-protocol-v2-smart-http-fetch-push",
+      "title": "Packs and Protocol v2 Smart HTTP fetch/push",
+      "allowed_paths": [
+        "src/core/pack/**",
+        "src/core/protocol/**",
+        "src/core/network/**",
+        "src/core/compress/**",
+        "src/index.ts",
+        "tests/**",
+        "scripts/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0009",
+        "INV-FEAT-0010",
+        "INV-FEAT-0020",
+        "INV-FEAT-0021",
+        "INV-FEAT-0022",
+        "INV-OPER-0001",
+        "INV-SECU-0004",
+        "INV-SECU-0005",
+        "INV-SECU-0008",
+        "INV-SECU-0009",
+        "INV-SECU-0010"
+      ]
+    },
+    {
+      "phase": 9,
+      "pr_id": "PR-0009",
+      "branch": "release-docs-and-publishing-gates",
+      "title": "Release docs and publishing gates",
+      "allowed_paths": [
+        "README.md",
+        "docs/**",
+        ".github/**",
+        "package.json",
+        "jsr.json",
+        "scripts/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml"
+      ],
+      "activated_invariants": [
+        "INV-QUAL-0024",
+        "INV-QUAL-0027",
+        "INV-QUAL-0028",
+        "INV-QUAL-0029"
+      ]
+    },
+    {
+      "phase": 10,
+      "pr_id": "PR-0010",
+      "branch": "config-credentials-hooks-and-ssh",
+      "title": "Config, credentials, hooks, and SSH",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0025",
+        "INV-FEAT-0026",
+        "INV-FEAT-0027",
+        "INV-FEAT-0028",
+        "INV-SECU-0013"
+      ]
+    },
+    {
+      "phase": 11,
+      "pr_id": "PR-0011",
+      "branch": "merge-rebase-cherry-pick-revert-stash",
+      "title": "Merge, rebase, cherry-pick, revert, stash",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0029",
+        "INV-FEAT-0030",
+        "INV-FEAT-0031",
+        "INV-FEAT-0032",
+        "INV-FEAT-0033"
+      ]
+    },
+    {
+      "phase": 12,
+      "pr_id": "PR-0012",
+      "branch": "branch-tag-remote-log-and-walk",
+      "title": "Branch, tag, remote, log, and walk",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0034",
+        "INV-FEAT-0035",
+        "INV-FEAT-0036",
+        "INV-FEAT-0037",
+        "INV-QUAL-0039"
+      ]
+    },
+    {
+      "phase": 13,
+      "pr_id": "PR-0013",
+      "branch": "diff-apply-and-blame",
+      "title": "Diff, apply, and blame",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0038",
+        "INV-FEAT-0039",
+        "INV-FEAT-0040",
+        "INV-SECU-0014"
+      ]
+    },
+    {
+      "phase": 14,
+      "pr_id": "PR-0014",
+      "branch": "submodule-and-worktree",
+      "title": "Submodule and worktree",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0041",
+        "INV-FEAT-0042",
+        "INV-SECU-0015"
+      ]
+    },
+    {
+      "phase": 15,
+      "pr_id": "PR-0015",
+      "branch": "sparse-checkout-and-partial-clone",
+      "title": "Sparse checkout and partial clone",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0043",
+        "INV-FEAT-0044",
+        "INV-SECU-0016"
+      ]
+    },
+    {
+      "phase": 16,
+      "pr_id": "PR-0016",
+      "branch": "commit-graph-midx-and-bitmaps",
+      "title": "Commit graph, MIDX, and bitmaps",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0045",
+        "INV-FEAT-0046",
+        "INV-FEAT-0047"
+      ]
+    },
+    {
+      "phase": 17,
+      "pr_id": "PR-0017",
+      "branch": "gc-repack-prune-and-maintenance",
+      "title": "GC, repack, prune, and maintenance",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0048",
+        "INV-OPER-0003",
+        "INV-QUAL-0040"
+      ]
+    },
+    {
+      "phase": 18,
+      "pr_id": "PR-0018",
+      "branch": "full-conformance-and-hardening",
+      "title": "Full conformance and hardening",
+      "allowed_paths": [
+        "src/**",
+        "tests/**",
+        "scripts/**",
+        "docs/**",
+        "spec/state.yaml"
+      ],
+      "denied_paths": [
+        "spec/phase-plan.yaml",
+        ".github/**"
+      ],
+      "activated_invariants": [
+        "INV-FEAT-0049",
+        "INV-FEAT-0050",
+        "INV-FEAT-0051",
+        "INV-FEAT-0052",
+        "INV-QUAL-0041"
+      ]
+    }
+  ]
+}

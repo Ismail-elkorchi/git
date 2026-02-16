@@ -1,0 +1,656 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+function fail(message) {
+  process.stderr.write(message + "\n");
+  process.exit(1);
+}
+
+function readText(absPath) {
+  return fs.readFileSync(absPath, "utf8");
+}
+
+function readJsonLike(absPath) {
+  const text = readText(absPath);
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    fail(`JSON parse failure: ${absPath}`);
+  }
+}
+
+function ensureDir(absPath) {
+  fs.mkdirSync(absPath, { recursive: true });
+}
+
+function run(cmd, args, opts = {}) {
+  const res = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  if (res.status !== 0) {
+    fail(`command failed: ${cmd} ${args.join(" ")}`);
+  }
+}
+
+function parseArgs(argv) {
+  const args = { runtime: "node", mode: "check" };
+  for (const a of argv.slice(2)) {
+    if (a.startsWith("--runtime=")) args.runtime = a.split("=", 2)[1];
+    if (a.startsWith("--mode=")) args.mode = a.split("=", 2)[1];
+  }
+  return args;
+}
+
+function runtimeIdFromArgs(args) {
+  if (args.runtime === "node") return "node";
+  if (args.runtime === "deno") return "deno";
+  if (args.runtime === "bun") return "bun";
+  fail(`unsupported runtime argument: ${args.runtime}`);
+}
+
+function evidencePath(repoRoot, invId) {
+  return path.join(repoRoot, "artifacts", "gates", `${invId}.json`);
+}
+
+function writeEvidence(repoRoot, inv, status, runtimeId, details) {
+  const outDir = path.join(repoRoot, "artifacts", "gates");
+  ensureDir(outDir);
+  const p = evidencePath(repoRoot, inv.id);
+  const payload = {
+    invariant_id: inv.id,
+    status,
+    timestamp_utc: new Date().toISOString(),
+    runtime_id: runtimeId,
+    verification_method: inv.proof_obligation.verification_method,
+    falsification_method: inv.proof_obligation.falsification_method,
+    details,
+  };
+  fs.writeFileSync(p, JSON.stringify(payload, null, 2) + "\n", "utf8");
+}
+
+function isIsoUtcDate(value) {
+  if (typeof value !== "string") return false;
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms)) return false;
+  return /Z$/.test(value);
+}
+
+function readEvidenceSchema(repoRoot) {
+  const schemaPath = path.join(repoRoot, "spec", "evidence.schema.json");
+  if (!fs.existsSync(schemaPath)) fail("spec/evidence.schema.json is missing.");
+  const schema = readJsonLike(schemaPath);
+  if (!Array.isArray(schema.required)) fail("evidence.schema.json required keys are missing.");
+  if (!schema.properties || typeof schema.properties !== "object") fail("evidence.schema.json properties are missing.");
+  return schema;
+}
+
+function validateEvidenceArtifactPayload(inv, payload, expectedRuntimeId, evidenceSchema) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    fail(`evidence payload type invalid: ${inv.id}`);
+  }
+
+  const expectedKeys = new Set(evidenceSchema.required);
+
+  for (const k of Object.keys(payload)) {
+    if (!expectedKeys.has(k)) fail(`evidence payload unexpected key ${k}: ${inv.id}`);
+  }
+  for (const k of expectedKeys) {
+    if (!Object.prototype.hasOwnProperty.call(payload, k)) {
+      fail(`evidence payload missing key ${k}: ${inv.id}`);
+    }
+  }
+
+  if (payload.invariant_id !== inv.id) fail(`evidence invariant_id mismatch: ${inv.id}`);
+  const statusEnum = evidenceSchema.properties.status?.enum;
+  if (!Array.isArray(statusEnum) || !statusEnum.includes(payload.status)) fail(`evidence status invalid: ${inv.id}`);
+  if (!isIsoUtcDate(payload.timestamp_utc)) fail(`evidence timestamp_utc invalid: ${inv.id}`);
+  if (typeof payload.runtime_id !== "string" || payload.runtime_id.length === 0) {
+    fail(`evidence runtime_id invalid: ${inv.id}`);
+  }
+  if (payload.runtime_id !== expectedRuntimeId) fail(`evidence runtime_id mismatch: ${inv.id}`);
+
+  const verifEnum = evidenceSchema.properties.verification_method?.enum;
+  if (!Array.isArray(verifEnum) || !verifEnum.includes(payload.verification_method)) {
+    fail(`evidence verification_method invalid against schema: ${inv.id}`);
+  }
+  if (payload.verification_method !== inv.proof_obligation.verification_method) {
+    fail(`evidence verification_method mismatch: ${inv.id}`);
+  }
+  const falsEnum = evidenceSchema.properties.falsification_method?.enum;
+  if (!Array.isArray(falsEnum) || !falsEnum.includes(payload.falsification_method)) {
+    fail(`evidence falsification_method invalid against schema: ${inv.id}`);
+  }
+  if (payload.falsification_method !== inv.proof_obligation.falsification_method) {
+    fail(`evidence falsification_method mismatch: ${inv.id}`);
+  }
+  if (!payload.details || typeof payload.details !== "object" || Array.isArray(payload.details)) {
+    fail(`evidence details object invalid: ${inv.id}`);
+  }
+}
+
+function validateEvidenceArtifacts(repoRoot, invariants, runtimeId, evidenceSchema) {
+  for (const inv of invariants) {
+    const p = evidencePath(repoRoot, inv.id);
+    if (!fs.existsSync(p)) fail(`missing evidence artifacts: ${inv.id}`);
+    const payload = readJsonLike(p);
+    validateEvidenceArtifactPayload(inv, payload, runtimeId, evidenceSchema);
+  }
+}
+
+function listFilesRecursive(absRoot) {
+  if (!fs.existsSync(absRoot)) return [];
+  const out = [];
+  const stack = [absRoot];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    const entries = fs.readdirSync(cur, { withFileTypes: true });
+    for (const e of entries) {
+      const full = path.join(cur, e.name);
+      if (e.isDirectory()) {
+        stack.push(full);
+        continue;
+      }
+      if (!e.isFile()) continue;
+      out.push(full);
+    }
+  }
+  return out;
+}
+
+function gateArtifactSizeBytes(repoRoot) {
+  const dir = path.join(repoRoot, "artifacts", "gates");
+  let total = 0;
+  for (const f of listFilesRecursive(dir)) {
+    total += fs.statSync(f).size;
+  }
+  return total;
+}
+
+function getActiveInvariants(repoRoot) {
+  const state = readJsonLike(path.join(repoRoot, "spec", "state.yaml"));
+  const plan = readJsonLike(path.join(repoRoot, "spec", "phase-plan.yaml"));
+  const invDoc = readJsonLike(path.join(repoRoot, "spec", "invariants.yaml"));
+
+  const phaseByPr = new Map();
+  for (const p of plan.phases) phaseByPr.set(p.pr_id, p.phase);
+
+  const currentPhase = state.current_phase;
+  const active = [];
+  for (const inv of invDoc.invariants) {
+    const actPr = inv.activation.pr_id;
+    const phase = phaseByPr.get(actPr);
+    if (!Number.isInteger(phase)) fail(`activation pr_id not found: ${inv.id} ${actPr}`);
+    if (phase <= currentPhase) active.push(inv);
+  }
+  active.sort((a, b) => a.id.localeCompare(b.id));
+  return { currentPhase, active };
+}
+
+function invariantHandlers(repoRoot) {
+  const repo = (p) => path.join(repoRoot, p);
+
+  function existsFile(rel) {
+    if (!fs.existsSync(repo(rel))) fail(`missing file: ${rel}`);
+  }
+
+  function existsDir(rel) {
+    const p = repo(rel);
+    if (!fs.existsSync(p)) fail(`missing directory: ${rel}`);
+    const st = fs.statSync(p);
+    if (!st.isDirectory()) fail(`not a directory: ${rel}`);
+  }
+
+  function readJson(rel) {
+    return readJsonLike(repo(rel));
+  }
+
+  function scanTree(dirRel, regex, label) {
+    const absRoot = repo(dirRel);
+    if (!fs.existsSync(absRoot)) return;
+    const stack = [absRoot];
+    while (stack.length > 0) {
+      const cur = stack.pop();
+      const entries = fs.readdirSync(cur, { withFileTypes: true });
+      for (const e of entries) {
+        const full = path.join(cur, e.name);
+        const rel = path.relative(repoRoot, full);
+        if (e.isDirectory()) {
+          if (e.name === "node_modules") continue;
+          if (e.name === ".git") continue;
+          if (e.name === "dist") continue;
+          if (e.name === "artifacts") continue;
+          stack.push(full);
+          continue;
+        }
+        if (!e.isFile()) continue;
+        const ext = path.extname(full).toLowerCase();
+        const isText = [".ts", ".js", ".mjs", ".cjs", ".json", ".md", ".yml", ".yaml", ".txt"].includes(ext);
+        if (!isText) continue;
+        const text = readText(full);
+        if (regex.test(text)) fail(`scan violation ${label} in ${rel}`);
+      }
+    }
+  }
+
+  function treeFiles(dirRel) {
+    const absRoot = repo(dirRel);
+    return listFilesRecursive(absRoot);
+  }
+
+  function requireTreeMatch(dirRel, regex, label) {
+    const files = treeFiles(dirRel);
+    for (const full of files) {
+      const ext = path.extname(full).toLowerCase();
+      if (![".ts", ".js", ".mjs", ".cjs", ".md", ".json", ".txt", ".yaml", ".yml"].includes(ext)) continue;
+      const text = readText(full);
+      if (regex.test(text)) return;
+    }
+    fail(`required pattern missing ${label} in ${dirRel}`);
+  }
+
+  function collectEntrypointExportNames(entrypoints) {
+    const names = new Set();
+
+    for (const rel of entrypoints) {
+      if (!fs.existsSync(repo(rel))) continue;
+      const t = readText(repo(rel));
+
+      const declRe = /^export\s+(?:async\s+)?(?:const|let|var|function|class|type|interface|enum)\s+([A-Za-z_][A-Za-z0-9_]*)/gm;
+      for (const m of t.matchAll(declRe)) names.add(m[1]);
+
+      const listRe = /^export\s*\{([^}]+)\}/gm;
+      for (const m of t.matchAll(listRe)) {
+        const parts = m[1].split(",").map((x) => x.trim()).filter((x) => x.length > 0);
+        for (const p of parts) {
+          const aliasMatch = p.match(/^([A-Za-z_][A-Za-z0-9_]*)(?:\s+as\s+([A-Za-z_][A-Za-z0-9_]*))?$/);
+          if (!aliasMatch) continue;
+          names.add(aliasMatch[2] || aliasMatch[1]);
+        }
+      }
+    }
+
+    return [...names];
+  }
+
+  const handlers = new Map();
+
+  handlers.set("INV-QUAL-0001", () => {
+    existsFile("LICENSE");
+    const t = readText(repo("LICENSE"));
+    if (!t.includes("MIT License")) fail("LICENSE missing MIT License marker.");
+  });
+
+  handlers.set("INV-QUAL-0002", () => {
+    const pkg = readJson("package.json");
+    const deps = pkg.dependencies;
+    const ok = deps && typeof deps === "object" && !Array.isArray(deps) && Object.keys(deps).length === 0;
+    if (!ok) fail("package.json dependencies MUST be an empty object.");
+  });
+
+  handlers.set("INV-QUAL-0003", () => {
+    const pkg = readJson("package.json");
+    if (Object.prototype.hasOwnProperty.call(pkg, "optionalDependencies")) fail("package.json optionalDependencies MUST be absent.");
+  });
+
+  handlers.set("INV-QUAL-0004", () => {
+    const pkg = readJson("package.json");
+    if (Object.prototype.hasOwnProperty.call(pkg, "peerDependencies")) fail("package.json peerDependencies MUST be absent.");
+  });
+
+  handlers.set("INV-QUAL-0005", () => {
+    const pkg = readJson("package.json");
+    if (pkg.type !== "module") fail("package.json type MUST equal module.");
+  });
+
+  function checkExportsHas(pkg, key) {
+    if (!pkg.exports) fail("package.json exports missing.");
+    if (!Object.prototype.hasOwnProperty.call(pkg.exports, key)) fail(`package.json exports missing ${key}.`);
+  }
+
+  handlers.set("INV-QUAL-0006", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, ".");
+  });
+
+  handlers.set("INV-QUAL-0007", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./node");
+  });
+
+  handlers.set("INV-QUAL-0008", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./deno");
+  });
+
+  handlers.set("INV-QUAL-0009", () => {
+    const pkg = readJson("package.json");
+    checkExportsHas(pkg, "./bun");
+  });
+
+  handlers.set("INV-QUAL-0010", () => {
+    const pkg = readJson("package.json");
+    if (pkg.exports && Object.prototype.hasOwnProperty.call(pkg.exports, "./browser")) fail("package.json exports MUST NOT include ./browser.");
+  });
+
+  function checkJsrExportsHas(jsr, key) {
+    if (!jsr.exports) fail("jsr.json exports missing.");
+    if (!Object.prototype.hasOwnProperty.call(jsr.exports, key)) fail(`jsr.json exports missing ${key}.`);
+  }
+
+  handlers.set("INV-QUAL-0011", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, ".");
+  });
+
+  handlers.set("INV-QUAL-0012", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./node");
+  });
+
+  handlers.set("INV-QUAL-0013", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./deno");
+  });
+
+  handlers.set("INV-QUAL-0014", () => {
+    const jsr = readJson("jsr.json");
+    checkJsrExportsHas(jsr, "./bun");
+  });
+
+  handlers.set("INV-QUAL-0015", () => {
+    existsFile(".github/workflows/ci.yml");
+  });
+
+  handlers.set("INV-QUAL-0016", () => {
+    existsFile(".github/workflows/pr-policy.yml");
+  });
+
+  handlers.set("INV-QUAL-0017", () => {
+    existsFile("scripts/check");
+  });
+
+  handlers.set("INV-QUAL-0018", () => {
+    existsFile("scripts/banned_token_scan");
+  });
+
+  handlers.set("INV-QUAL-0019", () => {
+    existsFile("scripts/pr_policy_check");
+  });
+
+  handlers.set("INV-QUAL-0020", () => {
+    existsFile("spec/phase-plan.yaml");
+  });
+
+  handlers.set("INV-QUAL-0021", () => {
+    existsFile("spec/state.yaml");
+  });
+
+  handlers.set("INV-QUAL-0022", () => {
+    existsFile("docs/spec-ideal-state.md");
+  });
+
+  handlers.set("INV-QUAL-0023", () => {
+    existsFile("docs/spec-development-process.md");
+  });
+
+  handlers.set("INV-QUAL-0024", () => {
+    existsFile("README.md");
+  });
+
+  handlers.set("INV-QUAL-0025", () => {
+    existsFile("SECURITY.md");
+  });
+
+  handlers.set("INV-QUAL-0026", () => {
+    existsFile("CONTRIBUTING.md");
+  });
+
+  handlers.set("INV-QUAL-0027", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"])')) {
+      fail("publish_dry_run MUST run npx jsr publish --dry-run.");
+    }
+  });
+
+  handlers.set("INV-QUAL-0028", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (!t.includes('run("npm", ["pack"])')) fail("publish_dry_run MUST run npm pack.");
+  });
+
+  handlers.set("INV-QUAL-0029", () => {
+    existsFile("scripts/publish_dry_run");
+    const t = readText(repo("scripts/publish_dry_run"));
+    if (t.includes("--allow-slow-types")) fail("publish_dry_run MUST NOT use --allow-slow-types.");
+  });
+
+  handlers.set("INV-QUAL-0030", () => {
+    const state = readJson("spec/state.yaml");
+    if (!Number.isInteger(state.current_phase)) fail("spec/state.yaml current_phase type mismatch.");
+  });
+
+  handlers.set("INV-QUAL-0031", () => {
+    existsFile("scripts/pr_policy_check");
+    const t = readText(repo("scripts/pr_policy_check"));
+    if (!t.includes('changed.includes("spec/phase-plan.yaml")')) {
+      fail("pr_policy_check MUST enforce immutable phase-plan after phase 1.");
+    }
+  });
+
+  handlers.set("INV-QUAL-0032", () => {
+    const entrypoints = ["src/index.ts", "src/node.ts", "src/deno.ts", "src/bun.ts"];
+    const names = collectEntrypointExportNames(entrypoints);
+    const testFiles = treeFiles("tests").filter((f) => /\.(ts|js|mjs|cjs)$/i.test(f));
+
+    if (testFiles.length === 0) fail("tests directory has no test files.");
+    requireTreeMatch("tests", /\bINV-[A-Z]{4}-[0-9]{4}\b/, "tests-invariant-id-token");
+
+    const aggregate = testFiles.map((f) => readText(f)).join("\n");
+    for (const name of names) {
+      if (!aggregate.includes(name)) {
+        fail(`missing export name coverage in tests: ${name}`);
+      }
+    }
+  });
+
+  handlers.set("INV-QUAL-0033", () => {
+    existsFile("scripts/contract_check");
+    existsFile("docs/api-contract.md");
+    run("node", ["scripts/contract_check"], { cwd: repoRoot });
+  });
+
+  handlers.set("INV-QUAL-0034", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('node-version: "22.x"')) fail("ci.yml MUST include node-version 22.x.");
+  });
+
+  handlers.set("INV-QUAL-0035", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('node-version: "24.x"')) fail("ci.yml MUST include node-version 24.x.");
+  });
+
+  handlers.set("INV-QUAL-0036", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('deno-version: "2.6.x"')) fail("ci.yml MUST include deno-version 2.6.x.");
+  });
+
+  handlers.set("INV-QUAL-0037", () => {
+    const t = readText(repo(".github/workflows/ci.yml"));
+    if (!t.includes('bun-version: "1.3.0"')) fail("ci.yml MUST include bun-version 1.3.0.");
+  });
+
+  handlers.set("INV-QUAL-0038", () => {
+    existsFile("package-lock.json");
+  });
+
+  handlers.set("INV-ARCH-0001", () => {
+    existsDir("src");
+    existsDir("src/core");
+    existsDir("src/ports");
+    existsDir("src/adapters");
+  });
+
+  handlers.set("INV-ARCH-0002", () => {
+    scanTree("src/core", /\bfrom\s+["']node:/i, "core-node-colon-import");
+    scanTree("src/core", /\brequire\(\s*["']node:/i, "core-node-colon-require");
+    scanTree("src/core", /\bfrom\s+["'](?:fs|path|os|net|tls|http|https|child_process|worker_threads|dgram|dns|readline|url|stream|zlib|crypto|buffer|perf_hooks|events|vm|module|timers|util|assert|tty)(?:\/[^"']*)?["']/i, "core-node-runtime-import");
+    scanTree("src/core", /\bfrom\s+["']bun(?::[^"']*)?["']/i, "core-bun-runtime-import");
+    scanTree("src/core", /\bfrom\s+["']deno:[^"']+["']/i, "core-deno-runtime-import");
+  });
+
+  handlers.set("INV-ARCH-0003", () => {
+    scanTree("src/core", /\bfrom\s+["'][^"']*\/adapters\//i, "core-imports-adapters");
+  });
+
+  handlers.set("INV-ARCH-0004", () => {
+    const files = treeFiles("src/ports");
+    for (const full of files) {
+      if (!/\.(ts|mts|cts|js|mjs|cjs)$/i.test(full)) continue;
+      const rel = path.relative(repoRoot, full);
+      const t = readText(full);
+      if (/\bexport\s+(?:default|const|let|var|function|class|enum)\b/.test(t)) {
+        fail(`ports runtime export detected: ${rel}`);
+      }
+    }
+  });
+
+  handlers.set("INV-ARCH-0005", () => {
+    const entrypoints = ["src/index.ts", "src/node.ts", "src/deno.ts", "src/bun.ts"];
+    for (const rel of entrypoints) {
+      existsFile(rel);
+      const t = readText(repo(rel));
+      if (t.includes("export *")) fail(`entrypoint contains export *: ${rel}`);
+    }
+  });
+
+  handlers.set("INV-SECU-0001", () => {
+    scanTree(".", /\beval\s*\(/i, "eval");
+  });
+
+  handlers.set("INV-SECU-0002", () => {
+    scanTree(".", /\bnew\s+Function\s*\(/, "Function");
+    scanTree(".", /\bFunction\s*\(/, "Function");
+  });
+
+  handlers.set("INV-SECU-0003", () => {
+    scanTree("src", /\bchild_process\b/i, "child_process");
+    scanTree("src", /\bDeno\.Command\b/i, "Deno.Command");
+    scanTree("src", /\bBun\.spawn\b/i, "Bun.spawn");
+  });
+
+  handlers.set("INV-SECU-0004", () => {
+    scanTree("tests", /https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i, "non-local-network-url-tests");
+    scanTree("scripts", /https?:\/\/(?!localhost\b|127\.0\.0\.1\b)/i, "non-local-network-url-scripts");
+    scanTree("tests", /--allow-net=(?!127\.0\.0\.1|localhost)/i, "non-local-network-allow-net-tests");
+    scanTree("scripts", /--allow-net=(?!127\.0\.0\.1|localhost)/i, "non-local-network-allow-net-scripts");
+  });
+
+  handlers.set("INV-SECU-0011", () => {
+    scanTree("src/core", /\bprocess\.env\b/, "core-process-env");
+    scanTree("src/core", /\bDeno\.env\b/, "core-deno-env");
+    scanTree("src/core", /\bBun\.env\b/, "core-bun-env");
+    scanTree("src/core", /\bimport\.meta\.env\b/, "core-import-meta-env");
+  });
+
+  handlers.set("INV-SECU-0012", () => {
+    scanTree("src", /\bprompt\s*\(/i, "prompt");
+    scanTree("src", /\bconfirm\s*\(/i, "confirm");
+    scanTree("src", /\breadline\b/i, "readline");
+    scanTree("src", /\binquirer\b/i, "inquirer");
+  });
+
+  handlers.set("INV-QUAL-0040", () => {
+    const t = readText(repo("scripts/check"));
+    if (!t.includes("duration_ms")) fail("check gate MUST write duration metrics.");
+    if (!t.includes("artifact_size_bytes")) fail("check gate MUST write artifact size metrics.");
+  });
+
+  handlers.set("INV-QUAL-0041", () => {
+    existsDir("tests/conformance");
+    requireTreeMatch("tests/conformance", /\bgit\s+(?:fsck|verify-pack|show-ref|rev-parse|cat-file)\b/i, "conformance-git-cli-baseline");
+  });
+
+  return handlers;
+}
+
+function main() {
+  const repoRoot = process.cwd();
+  const args = parseArgs(process.argv);
+  const runtimeId = runtimeIdFromArgs(args);
+  const startedAtMs = Date.now();
+  const evidenceSchema = readEvidenceSchema(repoRoot);
+
+  ensureDir(path.join(repoRoot, "artifacts", "gates"));
+
+  run("node", ["scripts/banned_token_scan"], { cwd: repoRoot });
+  run("node", ["scripts/pr_policy_check"], { cwd: repoRoot });
+
+  run("npm", ["run", "-s", "lint"], { cwd: repoRoot });
+  run("npm", ["run", "-s", "typecheck"], { cwd: repoRoot });
+  run("npm", ["run", "-s", "build"], { cwd: repoRoot });
+
+  if (args.runtime === "node") run("npm", ["run", "-s", "test:node"], { cwd: repoRoot });
+  if (args.runtime === "deno") run("npm", ["run", "-s", "test:deno"], { cwd: repoRoot });
+  if (args.runtime === "bun") run("npm", ["run", "-s", "test:bun"], { cwd: repoRoot });
+
+  if (args.mode === "publish") run("npm", ["run", "-s", "publish:dry-run"], { cwd: repoRoot });
+
+  const { active } = getActiveInvariants(repoRoot);
+  const handlers = invariantHandlers(repoRoot);
+  const activeById = new Map(active.map((inv) => [inv.id, inv]));
+  const specialId = "INV-OPER-0002";
+
+  for (const inv of active) {
+    if (inv.id === specialId) continue;
+    if (inv.proof_obligation.verification_method !== "gate-script") continue;
+    const h = handlers.get(inv.id);
+    if (!h) fail(`missing gate handler for ${inv.id}`);
+    const details = h() || {};
+    writeEvidence(repoRoot, inv, "pass", runtimeId, {
+      method: "gate-script",
+      ...details,
+    });
+  }
+
+  const evidenceDir = path.join(repoRoot, "artifacts", "gates");
+  const missingBeforeSpecial = [];
+  for (const inv of active) {
+    if (inv.id === specialId) continue;
+    const p = path.join(evidenceDir, `${inv.id}.json`);
+    if (!fs.existsSync(p)) missingBeforeSpecial.push(inv.id);
+  }
+  if (missingBeforeSpecial.length > 0) fail(`missing evidence artifacts: ${missingBeforeSpecial.join(", ")}`);
+
+  const metricsInv = activeById.get("INV-QUAL-0040");
+  if (metricsInv && metricsInv.proof_obligation.verification_method === "gate-script") {
+    const durationMs = Date.now() - startedAtMs;
+    const artifactSizeBytes = gateArtifactSizeBytes(repoRoot);
+    writeEvidence(repoRoot, metricsInv, "pass", runtimeId, {
+      method: "gate-script",
+      duration_ms: durationMs,
+      artifact_size_bytes: artifactSizeBytes,
+    });
+  }
+
+  const specialInv = activeById.get(specialId);
+  if (!specialInv) fail(`${specialId} missing from active invariant set.`);
+  writeEvidence(repoRoot, specialInv, "pass", runtimeId, {
+    method: "gate-script",
+    active_invariant_count: active.length,
+    evidence_artifact_count: listFilesRecursive(evidenceDir).length,
+  });
+
+  const finalMissing = [];
+  for (const inv of active) {
+    const p = path.join(evidenceDir, `${inv.id}.json`);
+    if (!fs.existsSync(p)) finalMissing.push(inv.id);
+  }
+  if (finalMissing.length > 0) fail(`missing evidence artifacts: ${finalMissing.join(", ")}`);
+
+  validateEvidenceArtifacts(repoRoot, active, runtimeId, evidenceSchema);
+
+  process.stdout.write("OK check\n");
+}
+
+main();

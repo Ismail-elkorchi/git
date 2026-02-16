@@ -1,0 +1,2462 @@
+{
+  "schema_version": 1,
+  "invariants": [
+    {
+      "id": "INV-QUAL-0001",
+      "kind": "quality",
+      "statement": "The repository MUST include a LICENSE file with MIT license text.",
+      "rationale": "License clarity is required for publishing and contributions.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0001.json",
+        "reference_tag": "INV-QUAL-0001",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "LICENSE"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0002",
+      "kind": "quality",
+      "statement": "The package.json file MUST include a dependencies field equal to an empty object.",
+      "rationale": "Zero runtime dependencies reduce supply chain risk and runtime bloat.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0002.json",
+        "reference_tag": "INV-QUAL-0002",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0003",
+      "kind": "quality",
+      "statement": "The package.json file MUST omit the optionalDependencies field.",
+      "rationale": "Optional runtime dependencies are prohibited.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0003.json",
+        "reference_tag": "INV-QUAL-0003",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0004",
+      "kind": "quality",
+      "statement": "The package.json file MUST omit the peerDependencies field.",
+      "rationale": "Peer dependencies are prohibited for this library.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0004.json",
+        "reference_tag": "INV-QUAL-0004",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0005",
+      "kind": "quality",
+      "statement": "The package.json file MUST declare type with the value module.",
+      "rationale": "ESM packaging is required for multi-runtime compatibility.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0005.json",
+        "reference_tag": "INV-QUAL-0005",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0006",
+      "kind": "quality",
+      "statement": "The package.json exports field MUST expose the entry point named \".\".",
+      "rationale": "Entry point stability is required for consumers.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0006.json",
+        "reference_tag": "INV-QUAL-0006",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0007",
+      "kind": "quality",
+      "statement": "The package.json exports field MUST expose the entry point named \"./node\".",
+      "rationale": "Runtime adapter access is required for Node.js.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0007.json",
+        "reference_tag": "INV-QUAL-0007",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0008",
+      "kind": "quality",
+      "statement": "The package.json exports field MUST expose the entry point named \"./deno\".",
+      "rationale": "Runtime adapter access is required for Deno.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0008.json",
+        "reference_tag": "INV-QUAL-0008",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0009",
+      "kind": "quality",
+      "statement": "The package.json exports field MUST expose the entry point named \"./bun\".",
+      "rationale": "Runtime adapter access is required for Bun.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0009.json",
+        "reference_tag": "INV-QUAL-0009",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0010",
+      "kind": "quality",
+      "statement": "The package.json exports field MUST NOT expose the entry point named \"./browser\".",
+      "rationale": "Browser support is deferred beyond v1.0.0.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0010.json",
+        "reference_tag": "INV-QUAL-0010",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0011",
+      "kind": "quality",
+      "statement": "The jsr.json file MUST expose the entry point named \".\".",
+      "rationale": "JSR export configuration is required for publishing.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0011.json",
+        "reference_tag": "INV-QUAL-0011",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0012",
+      "kind": "quality",
+      "statement": "The jsr.json file MUST expose the entry point named \"./node\".",
+      "rationale": "JSR subpath exports are required for runtime adapters.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0012.json",
+        "reference_tag": "INV-QUAL-0012",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0013",
+      "kind": "quality",
+      "statement": "The jsr.json file MUST expose the entry point named \"./deno\".",
+      "rationale": "JSR subpath exports are required for runtime adapters.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0013.json",
+        "reference_tag": "INV-QUAL-0013",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0014",
+      "kind": "quality",
+      "statement": "The jsr.json file MUST expose the entry point named \"./bun\".",
+      "rationale": "JSR subpath exports are required for runtime adapters.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0014.json",
+        "reference_tag": "INV-QUAL-0014",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0015",
+      "kind": "quality",
+      "statement": "The repository MUST include the workflow file .github/workflows/ci.yml.",
+      "rationale": "Continuous integration is required for integrity.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0015.json",
+        "reference_tag": "INV-QUAL-0015",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/ci.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0016",
+      "kind": "quality",
+      "statement": "The repository MUST include the workflow file .github/workflows/pr-policy.yml.",
+      "rationale": "Pull request policy enforcement is required for integrity.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0016.json",
+        "reference_tag": "INV-QUAL-0016",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/pr-policy.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0017",
+      "kind": "quality",
+      "statement": "The repository MUST include the file scripts/check.",
+      "rationale": "A single gate entry point is required for deterministic verification.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0017.json",
+        "reference_tag": "INV-QUAL-0017",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/check"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0018",
+      "kind": "quality",
+      "statement": "The repository MUST include the file scripts/banned_token_scan.",
+      "rationale": "Language integrity enforcement is required for merge safety.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0018.json",
+        "reference_tag": "INV-QUAL-0018",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/banned_token_scan"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0019",
+      "kind": "quality",
+      "statement": "The repository MUST include the file scripts/pr_policy_check.",
+      "rationale": "Pull request policy enforcement is required for merge safety.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0019.json",
+        "reference_tag": "INV-QUAL-0019",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/pr_policy_check"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0020",
+      "kind": "quality",
+      "statement": "The repository MUST include spec/phase-plan.yaml.",
+      "rationale": "Deterministic execution requires an immutable phase plan.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0020.json",
+        "reference_tag": "INV-QUAL-0020",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "spec/phase-plan.yaml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0021",
+      "kind": "quality",
+      "statement": "The repository MUST include spec/state.yaml.",
+      "rationale": "Deterministic execution requires an explicit progress state.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0021.json",
+        "reference_tag": "INV-QUAL-0021",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "spec/state.yaml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0022",
+      "kind": "quality",
+      "statement": "The repository MUST include docs/spec-ideal-state.md.",
+      "rationale": "The ideal state specification is required for scope stability.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0022.json",
+        "reference_tag": "INV-QUAL-0022",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "docs/spec-ideal-state.md"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0023",
+      "kind": "quality",
+      "statement": "The repository MUST include docs/spec-development-process.md.",
+      "rationale": "The development process specification is required for execution stability.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0023.json",
+        "reference_tag": "INV-QUAL-0023",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "docs/spec-development-process.md"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0024",
+      "kind": "quality",
+      "statement": "The repository MUST include README.md.",
+      "rationale": "Publishing requires a README file.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0024.json",
+        "reference_tag": "INV-QUAL-0024",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "README.md"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0009"
+      }
+    },
+    {
+      "id": "INV-QUAL-0025",
+      "kind": "quality",
+      "statement": "The repository MUST include SECURITY.md.",
+      "rationale": "Publishing requires security contact documentation.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0025.json",
+        "reference_tag": "INV-QUAL-0025",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "SECURITY.md"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0026",
+      "kind": "quality",
+      "statement": "The repository MUST include CONTRIBUTING.md.",
+      "rationale": "Open source governance requires contribution guidance.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0026.json",
+        "reference_tag": "INV-QUAL-0026",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "CONTRIBUTING.md"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-ARCH-0001",
+      "kind": "architecture",
+      "statement": "The repository MUST define source directories src/core and src/ports and src/adapters.",
+      "rationale": "A clear boundary is required for multi-runtime support.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-ARCH-0001.json",
+        "reference_tag": "INV-ARCH-0001",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**",
+          "src/ports/**",
+          "src/adapters/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-ARCH-0002",
+      "kind": "architecture",
+      "statement": "Core modules under src/core MUST NOT import runtime-specific built-in modules.",
+      "rationale": "Core purity is required for runtime portability.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-ARCH-0002.json",
+        "reference_tag": "INV-ARCH-0002",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-ARCH-0003",
+      "kind": "architecture",
+      "statement": "Core modules under src/core MUST NOT import from src/adapters.",
+      "rationale": "Core isolation is required for adapter swapping.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-ARCH-0003.json",
+        "reference_tag": "INV-ARCH-0003",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-ARCH-0004",
+      "kind": "architecture",
+      "statement": "Files under src/ports MUST NOT export runtime values.",
+      "rationale": "Ports must define interfaces and types only.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-ARCH-0004.json",
+        "reference_tag": "INV-ARCH-0004",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/ports/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-ARCH-0005",
+      "kind": "architecture",
+      "statement": "Public entry point files MUST use explicit named exports.",
+      "rationale": "Explicit exports enable export coverage validation.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-ARCH-0005.json",
+        "reference_tag": "INV-ARCH-0005",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/index.ts",
+          "src/node.ts",
+          "src/deno.ts",
+          "src/bun.ts"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-SECU-0001",
+      "kind": "security",
+      "statement": "The codebase MUST NOT use eval.",
+      "rationale": "Dynamic code execution increases security risk.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0001.json",
+        "reference_tag": "INV-SECU-0001",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/**",
+          "scripts/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-SECU-0002",
+      "kind": "security",
+      "statement": "The codebase MUST NOT use the Function constructor.",
+      "rationale": "Dynamic code execution increases security risk.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0002.json",
+        "reference_tag": "INV-SECU-0002",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/**",
+          "scripts/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-SECU-0003",
+      "kind": "security",
+      "statement": "Production code under src MUST NOT execute external processes.",
+      "rationale": "External process execution is prohibited for Git behavior in v1.0.0.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0003.json",
+        "reference_tag": "INV-SECU-0003",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-SECU-0004",
+      "kind": "security",
+      "statement": "Tests MUST NOT access non-local network addresses.",
+      "rationale": "Tests must run offline for determinism.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0004.json",
+        "reference_tag": "INV-SECU-0004",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "tests/**",
+          "scripts/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-SECU-0005",
+      "kind": "security",
+      "statement": "The pkt-line parser MUST reject pkt-line lengths greater than 65520 bytes.",
+      "rationale": "Pkt-line length enforcement prevents memory abuse.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0005.json",
+        "reference_tag": "INV-SECU-0005",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/protocol/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-SECU-0006",
+      "kind": "security",
+      "statement": "The default maxInflatedBytes limit MUST equal 134217728.",
+      "rationale": "Inflation limits prevent decompression bombs.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0006.json",
+        "reference_tag": "INV-SECU-0006",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0004"
+      }
+    },
+    {
+      "id": "INV-OPER-0001",
+      "kind": "operability",
+      "statement": "UiPort.onProgress MUST be invoked for network operations.",
+      "rationale": "Progress reporting is required for long-running operations.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-OPER-0001.json",
+        "reference_tag": "INV-OPER-0001",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-OPER-0002",
+      "kind": "operability",
+      "statement": "The check gate MUST emit an Evidence Artifact for every activated Invariant.",
+      "rationale": "Evidence artifacts are required for deterministic verification.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-OPER-0002.json",
+        "reference_tag": "INV-OPER-0002",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/check",
+          "artifacts/gates/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-FEAT-0001",
+      "kind": "feature",
+      "statement": "Repo.init MUST create a valid Git repository directory structure.",
+      "rationale": "Repository creation is required for all operations.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0001.json",
+        "reference_tag": "INV-FEAT-0001",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/repo/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0002",
+      "kind": "feature",
+      "statement": "Repo.open MUST open an existing Git repository created by git CLI.",
+      "rationale": "Interoperability with git CLI repositories is required.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0002.json",
+        "reference_tag": "INV-FEAT-0002",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/repo/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0003",
+      "kind": "feature",
+      "statement": "Repo.writeBlob MUST write a blob object that git cat-file can read by oid.",
+      "rationale": "Git object compatibility is required.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0003.json",
+        "reference_tag": "INV-FEAT-0003",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/objects/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0004",
+      "kind": "feature",
+      "statement": "Repo.readObject MUST return the same bytes as git cat-file for the same oid.",
+      "rationale": "Object database correctness is required.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0004.json",
+        "reference_tag": "INV-FEAT-0004",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/objects/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0005",
+      "kind": "feature",
+      "statement": "Core SHA-1 hashing MUST match git hash-object for identical object streams.",
+      "rationale": "OID correctness is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0005.json",
+        "reference_tag": "INV-FEAT-0005",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/crypto/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0003"
+      }
+    },
+    {
+      "id": "INV-FEAT-0006",
+      "kind": "feature",
+      "statement": "Core SHA-256 hashing MUST match git hash-object --algorithm=sha256 for identical object streams.",
+      "rationale": "OID correctness is required for SHA-256 repositories.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0006.json",
+        "reference_tag": "INV-FEAT-0006",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/crypto/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0003"
+      }
+    },
+    {
+      "id": "INV-FEAT-0007",
+      "kind": "feature",
+      "statement": "CompressionPort.inflateRaw MUST enforce InflateLimits.",
+      "rationale": "Inflation limits prevent decompression bombs.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0007.json",
+        "reference_tag": "INV-FEAT-0007",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/compress/**",
+          "src/adapters/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0004"
+      }
+    },
+    {
+      "id": "INV-FEAT-0008",
+      "kind": "feature",
+      "statement": "Repositories written by the library MUST pass git fsck --full.",
+      "rationale": "Repository integrity is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0008.json",
+        "reference_tag": "INV-FEAT-0008",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0009",
+      "kind": "feature",
+      "statement": "The library MUST read objects from packfiles referenced by .idx files.",
+      "rationale": "Pack read support is required for fetch and clone scenarios.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0009.json",
+        "reference_tag": "INV-FEAT-0009",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-FEAT-0010",
+      "kind": "feature",
+      "statement": "The library MUST write packfiles and .idx files that git verify-pack can validate.",
+      "rationale": "Pack write support is required for push scenarios.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0010.json",
+        "reference_tag": "INV-FEAT-0010",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-FEAT-0011",
+      "kind": "feature",
+      "statement": "Repo.resolveHead MUST resolve HEAD to an oid matching git rev-parse HEAD.",
+      "rationale": "HEAD resolution is required for status and checkout.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0011.json",
+        "reference_tag": "INV-FEAT-0011",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0006"
+      }
+    },
+    {
+      "id": "INV-FEAT-0012",
+      "kind": "feature",
+      "statement": "Repo.updateRef MUST update a loose reference that git show-ref can read.",
+      "rationale": "Reference updates are required for commits and branch movement.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0012.json",
+        "reference_tag": "INV-FEAT-0012",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0006"
+      }
+    },
+    {
+      "id": "INV-FEAT-0013",
+      "kind": "feature",
+      "statement": "The library MUST read packed-refs entries.",
+      "rationale": "Packed refs support is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0013.json",
+        "reference_tag": "INV-FEAT-0013",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0006"
+      }
+    },
+    {
+      "id": "INV-FEAT-0014",
+      "kind": "feature",
+      "statement": "The library MUST append reflog entries for reference updates.",
+      "rationale": "Reflog support is required for auditability and Git compatibility.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0014.json",
+        "reference_tag": "INV-FEAT-0014",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0006"
+      }
+    },
+    {
+      "id": "INV-FEAT-0015",
+      "kind": "feature",
+      "statement": "The library MUST read and write the Git index file version 2.",
+      "rationale": "Index support is required for add and status.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0015.json",
+        "reference_tag": "INV-FEAT-0015",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/index/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0007"
+      }
+    },
+    {
+      "id": "INV-FEAT-0016",
+      "kind": "feature",
+      "statement": "Repo.add MUST stage paths into the index.",
+      "rationale": "Staging is required for commit workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0016.json",
+        "reference_tag": "INV-FEAT-0016",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/index/**",
+          "src/core/status/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0007"
+      }
+    },
+    {
+      "id": "INV-FEAT-0017",
+      "kind": "feature",
+      "statement": "Repo.checkout MUST materialize a commit tree into the worktree.",
+      "rationale": "Checkout is required for working directory workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0017.json",
+        "reference_tag": "INV-FEAT-0017",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/checkout/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0007"
+      }
+    },
+    {
+      "id": "INV-FEAT-0018",
+      "kind": "feature",
+      "statement": "Repo.checkout MUST reject tree paths that escape the worktree root.",
+      "rationale": "Traversal protection is required for safety.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0018.json",
+        "reference_tag": "INV-FEAT-0018",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/checkout/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0007"
+      }
+    },
+    {
+      "id": "INV-FEAT-0019",
+      "kind": "feature",
+      "statement": "Repo.status MUST report staged and unstaged changes deterministically.",
+      "rationale": "Status is required for agent workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0019.json",
+        "reference_tag": "INV-FEAT-0019",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/status/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0007"
+      }
+    },
+    {
+      "id": "INV-FEAT-0020",
+      "kind": "feature",
+      "statement": "Smart HTTP discovery MUST reject requests with more than one query parameter.",
+      "rationale": "Strict parsing prevents server confusion and request smuggling.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0020.json",
+        "reference_tag": "INV-FEAT-0020",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-FEAT-0021",
+      "kind": "feature",
+      "statement": "Repo.fetchHttp MUST fetch objects from a local git-http-backend fixture.",
+      "rationale": "Fetch support is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0021.json",
+        "reference_tag": "INV-FEAT-0021",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-FEAT-0022",
+      "kind": "feature",
+      "statement": "Repo.pushHttp MUST push updates to a local git-http-backend fixture.",
+      "rationale": "Push support is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0022.json",
+        "reference_tag": "INV-FEAT-0022",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-QUAL-0027",
+      "kind": "quality",
+      "statement": "The repository MUST pass npx jsr publish --dry-run.",
+      "rationale": "Publishing readiness requires a successful dry run.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0027.json",
+        "reference_tag": "INV-QUAL-0027",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json",
+          "src/**",
+          "dist/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0009"
+      }
+    },
+    {
+      "id": "INV-QUAL-0028",
+      "kind": "quality",
+      "statement": "The repository MUST produce an npm tarball via npm pack.",
+      "rationale": "npm publishing readiness requires a packable tarball.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0028.json",
+        "reference_tag": "INV-QUAL-0028",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package.json",
+          "dist/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0009"
+      }
+    },
+    {
+      "id": "INV-QUAL-0029",
+      "kind": "quality",
+      "statement": "The JSR dry run MUST not require an allow-slow-types flag.",
+      "rationale": "Slow types are rejected by JSR quality signals.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0029.json",
+        "reference_tag": "INV-QUAL-0029",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "jsr.json",
+          "src/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0009"
+      }
+    },
+    {
+      "id": "INV-QUAL-0030",
+      "kind": "quality",
+      "statement": "Every merged pull request MUST advance spec/state.yaml current_phase by exactly 1.",
+      "rationale": "Deterministic progress requires monotonic phase advancement.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0030.json",
+        "reference_tag": "INV-QUAL-0030",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "spec/state.yaml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0031",
+      "kind": "quality",
+      "statement": "The file spec/phase-plan.yaml MUST NOT change after PR-0001.",
+      "rationale": "Immutable planning prevents scope drift and gate evasion.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0031.json",
+        "reference_tag": "INV-QUAL-0031",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "spec/phase-plan.yaml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-QUAL-0032",
+      "kind": "quality",
+      "statement": "Every public export MUST be referenced by a test that contains the export name and an Invariant ID.",
+      "rationale": "Export verification prevents untested public surfaces.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0032.json",
+        "reference_tag": "INV-QUAL-0032",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/index.ts",
+          "src/node.ts",
+          "src/deno.ts",
+          "src/bun.ts",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-QUAL-0033",
+      "kind": "quality",
+      "statement": "The repository MUST include a contract gate that validates exports against docs/api-contract.md.",
+      "rationale": "Contract enforcement prevents API drift.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0033.json",
+        "reference_tag": "INV-QUAL-0033",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/contract_check",
+          "docs/api-contract.md",
+          "src/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-SECU-0007",
+      "kind": "security",
+      "statement": "The default maxInflateRatio limit MUST equal 200.",
+      "rationale": "Inflation ratio limits prevent decompression bombs.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0007.json",
+        "reference_tag": "INV-SECU-0007",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0004"
+      }
+    },
+    {
+      "id": "INV-SECU-0008",
+      "kind": "security",
+      "statement": "The default maxDeltaChainDepth limit MUST equal 50.",
+      "rationale": "Delta chain limits prevent excessive CPU use.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0008.json",
+        "reference_tag": "INV-SECU-0008",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-SECU-0009",
+      "kind": "security",
+      "statement": "The pkt-line parser MUST reject pkt-line data lengths greater than 65516 bytes.",
+      "rationale": "Pkt-line data length enforcement prevents memory abuse.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0009.json",
+        "reference_tag": "INV-SECU-0009",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/protocol/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-SECU-0010",
+      "kind": "security",
+      "statement": "Smart HTTP discovery MUST reject requests without a service query parameter.",
+      "rationale": "Strict parsing prevents ambiguous server behavior.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0010.json",
+        "reference_tag": "INV-SECU-0010",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0008"
+      }
+    },
+    {
+      "id": "INV-FEAT-0023",
+      "kind": "feature",
+      "statement": "Repo.init with hashAlgorithm=sha1 MUST create a repository whose object format is sha1.",
+      "rationale": "Hash algorithm correctness is required for interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0023.json",
+        "reference_tag": "INV-FEAT-0023",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/repo/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-FEAT-0024",
+      "kind": "feature",
+      "statement": "Repo.init with hashAlgorithm=sha256 MUST create a repository whose object format is sha256.",
+      "rationale": "SHA-256 repository support is required by scope.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0024.json",
+        "reference_tag": "INV-FEAT-0024",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/repo/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0005"
+      }
+    },
+    {
+      "id": "INV-SECU-0011",
+      "kind": "security",
+      "statement": "Core modules under src/core MUST NOT access environment variables.",
+      "rationale": "Implicit configuration is prohibited for deterministic behavior.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0011.json",
+        "reference_tag": "INV-SECU-0011",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-SECU-0012",
+      "kind": "security",
+      "statement": "Production code under src MUST NOT prompt for input.",
+      "rationale": "Interactive prompting is prohibited for agent workflows.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0012.json",
+        "reference_tag": "INV-SECU-0012",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0002"
+      }
+    },
+    {
+      "id": "INV-QUAL-0034",
+      "kind": "quality",
+      "statement": "The CI workflow MUST run a job on Node.js 22.x.",
+      "rationale": "Runtime coverage is required by scope.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0034.json",
+        "reference_tag": "INV-QUAL-0034",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/ci.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0035",
+      "kind": "quality",
+      "statement": "The CI workflow MUST run a job on Node.js 24.x.",
+      "rationale": "Runtime coverage is required by scope.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0035.json",
+        "reference_tag": "INV-QUAL-0035",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/ci.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0036",
+      "kind": "quality",
+      "statement": "The CI workflow MUST run a job on Deno 2.6.x.",
+      "rationale": "Runtime coverage is required by scope.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0036.json",
+        "reference_tag": "INV-QUAL-0036",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/ci.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0037",
+      "kind": "quality",
+      "statement": "The CI workflow MUST run a job on Bun 1.3.x.",
+      "rationale": "Runtime coverage is required by scope.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0037.json",
+        "reference_tag": "INV-QUAL-0037",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          ".github/workflows/ci.yml"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-QUAL-0038",
+      "kind": "quality",
+      "statement": "The repository MUST commit package-lock.json.",
+      "rationale": "Deterministic dependency installs require a lock file.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0038.json",
+        "reference_tag": "INV-QUAL-0038",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "package-lock.json"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0001"
+      }
+    },
+    {
+      "id": "INV-FEAT-0025",
+      "kind": "feature",
+      "statement": "SSH fetch operations MUST negotiate upload-pack and write fetched objects to the local object database.",
+      "rationale": "SSH transport parity is required for repository interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0025.json",
+        "reference_tag": "INV-FEAT-0025",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "src/core/protocol/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0010"
+      }
+    },
+    {
+      "id": "INV-FEAT-0026",
+      "kind": "feature",
+      "statement": "SSH push operations MUST negotiate receive-pack and update remote refs according to refspec rules.",
+      "rationale": "SSH transport parity is required for repository interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0026.json",
+        "reference_tag": "INV-FEAT-0026",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "src/core/protocol/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0010"
+      }
+    },
+    {
+      "id": "INV-FEAT-0027",
+      "kind": "feature",
+      "statement": "Configuration resolution MUST evaluate system and global and local and worktree scopes using Git precedence.",
+      "rationale": "Configuration parity is required for deterministic behavior across environments.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0027.json",
+        "reference_tag": "INV-FEAT-0027",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/config/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0010"
+      }
+    },
+    {
+      "id": "INV-FEAT-0028",
+      "kind": "feature",
+      "statement": "Hook policy execution MUST call HookPort with deterministic argv and stdin and env values.",
+      "rationale": "Hook behavior must remain deterministic under automated execution.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0028.json",
+        "reference_tag": "INV-FEAT-0028",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/hooks/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0010"
+      }
+    },
+    {
+      "id": "INV-SECU-0013",
+      "kind": "security",
+      "statement": "Credential handling MUST pass authentication material only through CredentialPort and MUST redact secrets from progress events.",
+      "rationale": "Secret handling boundaries are required to reduce credential leakage risk.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0013.json",
+        "reference_tag": "INV-SECU-0013",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/network/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0010"
+      }
+    },
+    {
+      "id": "INV-FEAT-0029",
+      "kind": "feature",
+      "statement": "Merge operations MUST support fast-forward and true-merge outcomes with correct parent ordering.",
+      "rationale": "Merge semantics are fundamental for repository history correctness.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0029.json",
+        "reference_tag": "INV-FEAT-0029",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/merge/**",
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0011"
+      }
+    },
+    {
+      "id": "INV-FEAT-0030",
+      "kind": "feature",
+      "statement": "Rebase operations MUST support continue and abort transitions with deterministic state files.",
+      "rationale": "Rebase state handling is required for recoverable history editing workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0030.json",
+        "reference_tag": "INV-FEAT-0030",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/rebase/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0011"
+      }
+    },
+    {
+      "id": "INV-FEAT-0031",
+      "kind": "feature",
+      "statement": "Cherry-pick operations MUST create commits whose trees match git cherry-pick for equivalent inputs.",
+      "rationale": "Cherry-pick parity is required for interoperability with existing workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0031.json",
+        "reference_tag": "INV-FEAT-0031",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/cherry-pick/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0011"
+      }
+    },
+    {
+      "id": "INV-FEAT-0032",
+      "kind": "feature",
+      "statement": "Revert operations MUST create commits whose trees match git revert for equivalent inputs.",
+      "rationale": "Revert parity is required for deterministic rollback workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0032.json",
+        "reference_tag": "INV-FEAT-0032",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/revert/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0011"
+      }
+    },
+    {
+      "id": "INV-FEAT-0033",
+      "kind": "feature",
+      "statement": "Stash operations MUST support save and list and apply and drop with stash refs parity.",
+      "rationale": "Stash support is required for non-destructive worktree state management.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0033.json",
+        "reference_tag": "INV-FEAT-0033",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/stash/**",
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0011"
+      }
+    },
+    {
+      "id": "INV-FEAT-0034",
+      "kind": "feature",
+      "statement": "Branch and tag creation MUST update refs with the same targets as equivalent git commands.",
+      "rationale": "Ref mutation parity is required for branch and tag interoperability.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0034.json",
+        "reference_tag": "INV-FEAT-0034",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0012"
+      }
+    },
+    {
+      "id": "INV-FEAT-0035",
+      "kind": "feature",
+      "statement": "Remote configuration operations MUST persist fetch and push refspec mappings deterministically.",
+      "rationale": "Remote mapping determinism is required for repeatable fetch and push behavior.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0035.json",
+        "reference_tag": "INV-FEAT-0035",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/remote/**",
+          "src/core/config/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0012"
+      }
+    },
+    {
+      "id": "INV-FEAT-0036",
+      "kind": "feature",
+      "statement": "Revision walks MUST return commits in deterministic order for the selected traversal mode.",
+      "rationale": "Stable commit traversal is required for reproducible logs and automation.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0036.json",
+        "reference_tag": "INV-FEAT-0036",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/revision-walk/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0012"
+      }
+    },
+    {
+      "id": "INV-FEAT-0037",
+      "kind": "feature",
+      "statement": "Log operations MUST expose oid and parent and author and committer metadata for each entry.",
+      "rationale": "Log metadata completeness is required for history tooling.",
+      "proof_obligation": {
+        "verification_method": "contract",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0037.json",
+        "reference_tag": "INV-FEAT-0037",
+        "falsification_method": "contract-mismatch"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/log/**",
+          "src/index.ts",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0012"
+      }
+    },
+    {
+      "id": "INV-QUAL-0039",
+      "kind": "quality",
+      "statement": "The public API exports for branch and tag and remote and log and walk operations MUST match 03_contracts.md declarations.",
+      "rationale": "Contract fidelity prevents API drift.",
+      "proof_obligation": {
+        "verification_method": "contract",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0039.json",
+        "reference_tag": "INV-QUAL-0039",
+        "falsification_method": "contract-mismatch"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/index.ts",
+          "docs/api.md",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0012"
+      }
+    },
+    {
+      "id": "INV-FEAT-0038",
+      "kind": "feature",
+      "statement": "Diff generation MUST produce unified patch hunks with deterministic ordering.",
+      "rationale": "Deterministic diffs are required for review and patch workflows.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0038.json",
+        "reference_tag": "INV-FEAT-0038",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/diff/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0013"
+      }
+    },
+    {
+      "id": "INV-FEAT-0039",
+      "kind": "feature",
+      "statement": "Patch apply operations MUST support forward and reverse application with index updates.",
+      "rationale": "Patch application parity is required for repository mutation workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0039.json",
+        "reference_tag": "INV-FEAT-0039",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/apply/**",
+          "src/core/index/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0013"
+      }
+    },
+    {
+      "id": "INV-FEAT-0040",
+      "kind": "feature",
+      "statement": "Blame operations MUST map each line range to one commit and author identity tuple.",
+      "rationale": "Blame parity is required for source attribution workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0040.json",
+        "reference_tag": "INV-FEAT-0040",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/blame/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0013"
+      }
+    },
+    {
+      "id": "INV-SECU-0014",
+      "kind": "security",
+      "statement": "Patch apply operations MUST reject paths that escape the configured worktree root.",
+      "rationale": "Path escape rejection prevents filesystem write attacks.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0014.json",
+        "reference_tag": "INV-SECU-0014",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/apply/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0013"
+      }
+    },
+    {
+      "id": "INV-FEAT-0041",
+      "kind": "feature",
+      "statement": "Submodule operations MUST update gitlink entries and module metadata with parity to git submodule commands.",
+      "rationale": "Submodule parity is required for monorepo and dependency workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0041.json",
+        "reference_tag": "INV-FEAT-0041",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/submodule/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0014"
+      }
+    },
+    {
+      "id": "INV-FEAT-0042",
+      "kind": "feature",
+      "statement": "Worktree operations MUST create and list and prune linked worktrees with metadata parity to git worktree.",
+      "rationale": "Worktree parity is required for multi-branch development workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0042.json",
+        "reference_tag": "INV-FEAT-0042",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/worktree/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0014"
+      }
+    },
+    {
+      "id": "INV-SECU-0015",
+      "kind": "security",
+      "statement": "Submodule and worktree operations MUST resolve and validate canonical paths before filesystem writes.",
+      "rationale": "Canonical path validation prevents path confusion and traversal issues.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0015.json",
+        "reference_tag": "INV-SECU-0015",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/submodule/**",
+          "src/core/worktree/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0014"
+      }
+    },
+    {
+      "id": "INV-FEAT-0043",
+      "kind": "feature",
+      "statement": "Sparse checkout operations MUST enforce cone and pattern inclusion rules on index and worktree entries.",
+      "rationale": "Sparse checkout semantics are required for large repository workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0043.json",
+        "reference_tag": "INV-FEAT-0043",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/sparse-checkout/**",
+          "src/core/index/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0015"
+      }
+    },
+    {
+      "id": "INV-FEAT-0044",
+      "kind": "feature",
+      "statement": "Partial clone operations MUST negotiate object filters and honor promisor object semantics.",
+      "rationale": "Partial clone support is required for large remote repository workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0044.json",
+        "reference_tag": "INV-FEAT-0044",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/partial-clone/**",
+          "src/core/protocol/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0015"
+      }
+    },
+    {
+      "id": "INV-SECU-0016",
+      "kind": "security",
+      "statement": "Partial clone object resolution MUST report INTEGRITY_ERROR when promised objects are missing or malformed.",
+      "rationale": "Missing promised objects must fail safely to protect repository integrity.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-SECU-0016.json",
+        "reference_tag": "INV-SECU-0016",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/partial-clone/**",
+          "src/core/objects/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0015"
+      }
+    },
+    {
+      "id": "INV-FEAT-0045",
+      "kind": "feature",
+      "statement": "Commit graph operations MUST write and verify commit-graph files accepted by git commit-graph verify.",
+      "rationale": "Commit-graph parity is required for scalable history traversal.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0045.json",
+        "reference_tag": "INV-FEAT-0045",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/commit-graph/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0016"
+      }
+    },
+    {
+      "id": "INV-FEAT-0046",
+      "kind": "feature",
+      "statement": "Multi-pack-index operations MUST write and verify files accepted by git multi-pack-index verify.",
+      "rationale": "Multi-pack-index parity is required for scalable object lookup.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0046.json",
+        "reference_tag": "INV-FEAT-0046",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/multi-pack-index/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0016"
+      }
+    },
+    {
+      "id": "INV-FEAT-0047",
+      "kind": "feature",
+      "statement": "Bitmap index operations MUST write and read bitmap data without altering object reachability semantics.",
+      "rationale": "Bitmap correctness is required for accelerated traversal without data loss.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0047.json",
+        "reference_tag": "INV-FEAT-0047",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/bitmap/**",
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0016"
+      }
+    },
+    {
+      "id": "INV-FEAT-0048",
+      "kind": "feature",
+      "statement": "Maintenance operations MUST run gc and repack and prune while preserving reachable objects and refs.",
+      "rationale": "Maintenance parity is required for long-running repository health.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0048.json",
+        "reference_tag": "INV-FEAT-0048",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/maintenance/**",
+          "src/core/pack/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0017"
+      }
+    },
+    {
+      "id": "INV-OPER-0003",
+      "kind": "operability",
+      "statement": "Maintenance operations MUST emit deterministic UiPort progress events for each major stage.",
+      "rationale": "Deterministic progress events are required for automation observability.",
+      "proof_obligation": {
+        "verification_method": "test",
+        "evidence_artifact": "artifacts/gates/INV-OPER-0003.json",
+        "reference_tag": "INV-OPER-0003",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/maintenance/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0017"
+      }
+    },
+    {
+      "id": "INV-QUAL-0040",
+      "kind": "quality",
+      "statement": "Maintenance gates MUST write duration and artifact size metrics under artifacts/gates.",
+      "rationale": "Quantitative metrics are required for regression tracking.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0040.json",
+        "reference_tag": "INV-QUAL-0040",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/check",
+          "artifacts/gates/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0017"
+      }
+    },
+    {
+      "id": "INV-QUAL-0041",
+      "kind": "quality",
+      "statement": "Conformance gates MUST compare selected operations against git CLI baselines and report pass status.",
+      "rationale": "Baseline comparison is required for compatibility confidence.",
+      "proof_obligation": {
+        "verification_method": "gate-script",
+        "evidence_artifact": "artifacts/gates/INV-QUAL-0041.json",
+        "reference_tag": "INV-QUAL-0041",
+        "falsification_method": "gate-failure"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "scripts/check",
+          "tests/**",
+          "artifacts/gates/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0018"
+      }
+    },
+    {
+      "id": "INV-FEAT-0049",
+      "kind": "feature",
+      "statement": "Signature verification operations MUST validate signed commit and tag payloads through SignaturePort.",
+      "rationale": "Signature validation is required for provenance workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0049.json",
+        "reference_tag": "INV-FEAT-0049",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/signatures/**",
+          "src/ports/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0018"
+      }
+    },
+    {
+      "id": "INV-FEAT-0050",
+      "kind": "feature",
+      "statement": "Attribute and ignore evaluation MUST match git include and exclude behavior for equivalent patterns.",
+      "rationale": "Pattern parity is required for repository content selection correctness.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0050.json",
+        "reference_tag": "INV-FEAT-0050",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/attributes/**",
+          "src/core/ignore/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0018"
+      }
+    },
+    {
+      "id": "INV-FEAT-0051",
+      "kind": "feature",
+      "statement": "Notes and replace refs operations MUST preserve lookup semantics equivalent to git notes and git replace.",
+      "rationale": "Metadata ref parity is required for advanced repository workflows.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0051.json",
+        "reference_tag": "INV-FEAT-0051",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/notes/**",
+          "src/core/replace/**",
+          "src/core/refs/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0018"
+      }
+    },
+    {
+      "id": "INV-FEAT-0052",
+      "kind": "feature",
+      "statement": "Transport capability negotiation MUST preserve feature parity across Smart HTTP and SSH sessions.",
+      "rationale": "Capability parity is required for consistent remote behavior.",
+      "proof_obligation": {
+        "verification_method": "e2e",
+        "evidence_artifact": "artifacts/gates/INV-FEAT-0052.json",
+        "reference_tag": "INV-FEAT-0052",
+        "falsification_method": "counterexample"
+      },
+      "implementation_surface": {
+        "files_or_modules": [
+          "src/core/protocol/**",
+          "src/core/network/**",
+          "tests/**"
+        ]
+      },
+      "activation": {
+        "pr_id": "PR-0018"
+      }
+    }
+  ]
+}

@@ -1,0 +1,221 @@
+{
+  "schema_version": 1,
+  "claims": [
+    {
+      "id": "CLM-NSTR-0001",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The repository MUST pass all required gates defined in 07_quality-gates.md on every pull request.",
+      "invariant_ids": [
+        "INV-OPER-0002"
+      ],
+      "verification_method": "gate-script",
+      "falsification_method": "gate-failure",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-OPER-0002.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0002",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The library MUST pass git fsck --full on repositories created and mutated by the library.",
+      "invariant_ids": [
+        "INV-FEAT-0008"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0008.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0003",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The library MUST pass git verify-pack -v on packfiles written by the library.",
+      "invariant_ids": [
+        "INV-FEAT-0010"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0010.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0004",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The library MUST pass compatibility suites that compare object and reference and index and history behavior against git CLI outputs.",
+      "invariant_ids": [
+        "INV-QUAL-0041"
+      ],
+      "verification_method": "benchmark",
+      "falsification_method": "benchmark-regression",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-QUAL-0041.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0005",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The package MUST pass npx jsr publish --dry-run.",
+      "invariant_ids": [
+        "INV-QUAL-0027"
+      ],
+      "verification_method": "gate-script",
+      "falsification_method": "gate-failure",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-QUAL-0027.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0006",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Success Metrics",
+      "statement": "The package MUST produce an npm tarball via npm pack.",
+      "invariant_ids": [
+        "INV-QUAL-0028"
+      ],
+      "verification_method": "gate-script",
+      "falsification_method": "gate-failure",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-QUAL-0028.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0007",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement SSH transport.",
+      "invariant_ids": [
+        "INV-FEAT-0025",
+        "INV-FEAT-0026",
+        "INV-FEAT-0052"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0025.json",
+        "artifacts/gates/INV-FEAT-0026.json",
+        "artifacts/gates/INV-FEAT-0052.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0008",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement credential helper integration via a Port abstraction.",
+      "invariant_ids": [
+        "INV-SECU-0013"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-SECU-0013.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0009",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement layered Git configuration reads and writes.",
+      "invariant_ids": [
+        "INV-FEAT-0027"
+      ],
+      "verification_method": "test",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0027.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0010",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement hook execution policy controls.",
+      "invariant_ids": [
+        "INV-FEAT-0028"
+      ],
+      "verification_method": "test",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0028.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0011",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement merge and rebase and cherry-pick and revert and stash workflows.",
+      "invariant_ids": [
+        "INV-FEAT-0029",
+        "INV-FEAT-0030",
+        "INV-FEAT-0031",
+        "INV-FEAT-0032",
+        "INV-FEAT-0033"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0029.json",
+        "artifacts/gates/INV-FEAT-0030.json",
+        "artifacts/gates/INV-FEAT-0031.json",
+        "artifacts/gates/INV-FEAT-0032.json",
+        "artifacts/gates/INV-FEAT-0033.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0012",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement submodule and worktree management.",
+      "invariant_ids": [
+        "INV-FEAT-0041",
+        "INV-FEAT-0042"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0041.json",
+        "artifacts/gates/INV-FEAT-0042.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0013",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement sparse checkout and partial clone filters.",
+      "invariant_ids": [
+        "INV-FEAT-0043",
+        "INV-FEAT-0044"
+      ],
+      "verification_method": "e2e",
+      "falsification_method": "counterexample",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0043.json",
+        "artifacts/gates/INV-FEAT-0044.json"
+      ]
+    },
+    {
+      "id": "CLM-NSTR-0014",
+      "source_path": ".codex-pack/01_north-star.md",
+      "source_section": "Completeness Targets",
+      "statement": "The library MUST implement commit-graph and multi-pack-index and bitmap acceleration flows.",
+      "invariant_ids": [
+        "INV-FEAT-0045",
+        "INV-FEAT-0046",
+        "INV-FEAT-0047"
+      ],
+      "verification_method": "benchmark",
+      "falsification_method": "benchmark-regression",
+      "evidence_artifacts": [
+        "artifacts/gates/INV-FEAT-0045.json",
+        "artifacts/gates/INV-FEAT-0046.json",
+        "artifacts/gates/INV-FEAT-0047.json"
+      ]
+    }
+  ]
+}

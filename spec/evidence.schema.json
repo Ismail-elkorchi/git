@@ -1,0 +1,48 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"required": [
+		"invariant_id",
+		"status",
+		"timestamp_utc",
+		"runtime_id",
+		"verification_method",
+		"falsification_method",
+		"details"
+	],
+	"properties": {
+		"invariant_id": {
+			"type": "string",
+			"pattern": "^INV-[A-Z]{4}-[0-9]{4}$"
+		},
+		"status": {
+			"type": "string",
+			"enum": ["pass", "fail"]
+		},
+		"timestamp_utc": {
+			"type": "string",
+			"format": "date-time"
+		},
+		"runtime_id": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_-]*$"
+		},
+		"verification_method": {
+			"type": "string",
+			"enum": ["test", "lint", "typecheck", "contract", "e2e", "gate-script"]
+		},
+		"falsification_method": {
+			"type": "string",
+			"enum": [
+				"gate-failure",
+				"counterexample",
+				"contract-mismatch",
+				"benchmark-regression"
+			]
+		},
+		"details": {
+			"type": "object"
+		}
+	},
+	"additionalProperties": false
+}

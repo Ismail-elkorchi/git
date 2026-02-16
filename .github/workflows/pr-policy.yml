@@ -1,0 +1,26 @@
+name: pr-policy
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pr_policy:
+    name: pr_policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+          cache: "npm"
+      - name: install
+        run: npm ci
+      - name: policy check
+        run: node scripts/pr_policy_check
