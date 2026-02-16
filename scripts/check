@@ -643,6 +643,30 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\bsha256\b/, "sha256-format-check");
   });
 
+  handlers.set("INV-FEAT-0011", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0011\b/, "inv-feat-0011-tests-token");
+    requireTreeMatch("tests", /\brev-parse\b/i, "rev-parse-head-baseline");
+  });
+
+  handlers.set("INV-FEAT-0012", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0012\b/, "inv-feat-0012-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/i, "show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0013", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0013\b/, "inv-feat-0013-tests-token");
+    requireTreeMatch("tests", /\bpack-refs\b/i, "packed-refs-baseline");
+  });
+
+  handlers.set("INV-FEAT-0014", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0014\b/, "inv-feat-0014-tests-token");
+    requireTreeMatch("tests", /\breflog\b/i, "reflog-entry-baseline");
+  });
+
   return handlers;
 }
 

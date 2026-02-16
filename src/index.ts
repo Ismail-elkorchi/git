@@ -5,6 +5,11 @@ import {
 	encodeLooseObject,
 	type GitObjectType,
 } from "./core/objects/loose.js";
+import {
+	formatReflogEntry,
+	normalizeRefName,
+	parsePackedRefs,
+} from "./core/refs/refs.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
 import type { CompressionPort } from "./ports/compression.js";
 
@@ -45,6 +50,11 @@ export class GitError extends Error {
 
 type NodeFsPromises = {
 	mkdir(path: string, options?: { recursive?: boolean }): Promise<void>;
+	appendFile(
+		path: string,
+		data: string,
+		options?: { encoding?: string },
+	): Promise<void>;
 	writeFile(
 		path: string,
 		data: string | Uint8Array,
@@ -80,11 +90,21 @@ function joinFsPath(base: string, ...parts: string[]): string {
 	return out;
 }
 
+function parentFsPath(pathValue: string): string {
+	const idx = pathValue.lastIndexOf("/");
+	if (idx <= 0) return "/";
+	return pathValue.slice(0, idx);
+}
+
 function objectPathParts(oid: string): { dir: string; file: string } {
 	if (!/^[0-9a-f]{40}$|^[0-9a-f]{64}$/.test(oid)) {
 		throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
 	}
 	return { dir: oid.slice(0, 2), file: oid.slice(2) };
+}
+
+function isObjectId(value: string): boolean {
+	return /^[0-9a-f]{40}$|^[0-9a-f]{64}$/.test(value);
 }
 
 async function loadNodeFs(): Promise<NodeFsPromises> {
@@ -144,6 +164,12 @@ export class Repo {
 			recursive: true,
 		});
 		await fs.mkdir(joinFsPath(gitDirPath, "refs", "tags"), { recursive: true });
+		await fs.mkdir(joinFsPath(gitDirPath, "logs", "refs", "heads"), {
+			recursive: true,
+		});
+		await fs.mkdir(joinFsPath(gitDirPath, "logs", "refs", "tags"), {
+			recursive: true,
+		});
 
 		await fs.writeFile(
 			joinFsPath(gitDirPath, "HEAD"),
@@ -247,5 +273,82 @@ export class Repo {
 		const inflated = await this.compression.inflateRaw(objectBytes);
 		const decoded = decodeLooseObject(inflated);
 		return decoded.payload;
+	}
+
+	public async resolveRef(refName: string): Promise<string | null> {
+		const fs = await loadNodeFs();
+		const normalizedRef = normalizeRefName(refName);
+		const loosePath = joinFsPath(this.gitDirPath, normalizedRef);
+		const looseExists = await pathExists(fs, loosePath);
+		if (looseExists) {
+			const looseValue = String(
+				await fs.readFile(loosePath, {
+					encoding: "utf8",
+				}),
+			).trim();
+			if (isObjectId(looseValue)) return looseValue;
+		}
+
+		const packedRefsPath = joinFsPath(this.gitDirPath, "packed-refs");
+		const packedExists = await pathExists(fs, packedRefsPath);
+		if (!packedExists) return null;
+		const packedText = String(
+			await fs.readFile(packedRefsPath, {
+				encoding: "utf8",
+			}),
+		);
+		return parsePackedRefs(packedText).get(normalizedRef) ?? null;
+	}
+
+	public async resolveHead(): Promise<string> {
+		const fs = await loadNodeFs();
+		const headPath = joinFsPath(this.gitDirPath, "HEAD");
+		const headValue = String(
+			await fs.readFile(headPath, {
+				encoding: "utf8",
+			}),
+		).trim();
+
+		if (headValue.startsWith("ref:")) {
+			const headRef = normalizeRefName(headValue.slice("ref:".length).trim());
+			const oid = await this.resolveRef(headRef);
+			if (oid === null) {
+				throw new GitError("head reference not found", "NOT_FOUND", {
+					headRef,
+				});
+			}
+			return oid;
+		}
+
+		if (!isObjectId(headValue)) {
+			throw new GitError("head value invalid", "OBJECT_FORMAT_ERROR", {
+				headValue,
+			});
+		}
+
+		return headValue;
+	}
+
+	public async updateRef(
+		refName: string,
+		oid: string,
+		message = "update-ref",
+	): Promise<void> {
+		if (!isObjectId(oid)) {
+			throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
+		}
+
+		const fs = await loadNodeFs();
+		const normalizedRef = normalizeRefName(refName);
+		const oldOid =
+			(await this.resolveRef(normalizedRef)) ?? "0".repeat(oid.length);
+		const refPath = joinFsPath(this.gitDirPath, normalizedRef);
+		await fs.mkdir(parentFsPath(refPath), { recursive: true });
+		await fs.writeFile(refPath, `${oid}\n`, { encoding: "utf8" });
+
+		const reflogPath = joinFsPath(this.gitDirPath, "logs", normalizedRef);
+		await fs.mkdir(parentFsPath(reflogPath), { recursive: true });
+		const reflogEntry = formatReflogEntry(oldOid, oid, message);
+		await fs.appendFile(reflogPath, reflogEntry, { encoding: "utf8" });
 	}
 }
