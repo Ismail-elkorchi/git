@@ -21,6 +21,11 @@ Log entries MUST expose oid and parent and author and committer fields.
 
 The Repo API MUST include setSparseCheckout and sparseCheckoutSelect operations.
 The Repo API MUST include negotiatePartialCloneFilter and setPromisorObject and resolvePromisedObject operations.
+The Repo API MUST include backfill operation with sparse scope and minBatchSize controls.
+The backfill operation MUST validate minBatchSize as an integer value greater than or equal to zero.
+The backfill operation MUST select requested object ids in deterministic lexicographic order.
+The backfill operation MUST limit requested object ids to sparse-selected index paths when sparse mode is enabled.
+The backfill operation MUST write fetched promised objects into object storage and remove fetched ids from promisorObjects state.
 
 ## Graph Index Bitmap Contracts
 

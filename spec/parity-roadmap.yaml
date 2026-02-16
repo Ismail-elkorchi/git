@@ -96,7 +96,7 @@
 			"id": "backfill",
 			"section": "newer-git-command-families",
 			"matrix_label": "`backfill`",
-			"state": "not-implemented"
+			"state": "implemented"
 		},
 		{
 			"id": "replay",
