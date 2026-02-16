@@ -932,6 +932,32 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\.\.\/escape/, "submodule-worktree-escape-counterexample");
   });
 
+  handlers.set("INV-FEAT-0043", () => {
+    existsFile("src/core/sparse-checkout/rules.ts");
+    requireTreeMatch("src", /\bsetSparseCheckout\b/, "repo-set-sparse-checkout-method");
+    requireTreeMatch("src", /\bsparseCheckoutSelect\b/, "repo-sparse-checkout-select-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0043\b/, "inv-feat-0043-tests-token");
+    requireTreeMatch("tests", /\bsparse-checkout\b/i, "sparse-checkout-baseline");
+  });
+
+  handlers.set("INV-FEAT-0044", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src/core/partial-clone", /\bnegotiatePartialCloneFilter\b/, "partial-clone-filter-negotiation-token");
+    requireTreeMatch("src", /\bsetPromisorObject\b/, "repo-set-promisor-object-method");
+    requireTreeMatch("src", /\bresolvePromisedObject\b/, "repo-resolve-promised-object-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0044\b/, "inv-feat-0044-tests-token");
+    requireTreeMatch("tests", /--filter=blob:none/, "partial-clone-filter-baseline");
+  });
+
+  handlers.set("INV-SECU-0016", () => {
+    existsFile("src/core/partial-clone/promisor.ts");
+    requireTreeMatch("src", /\bINTEGRITY_ERROR\b/, "partial-clone-integrity-error-token");
+    requireTreeMatch("tests", /\bINV-SECU-0016\b/, "inv-secu-0016-tests-token");
+    requireTreeMatch("tests", /\bmissing\b/, "promised-object-missing-token");
+    requireTreeMatch("tests", /\bmalformed\b/, "promised-object-malformed-token");
+    requireTreeMatch("tests", /\bINTEGRITY_ERROR\b/, "promised-object-integrity-error-token");
+  });
+
   return handlers;
 }
 

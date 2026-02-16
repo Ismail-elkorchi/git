@@ -12,3 +12,8 @@ The Repo API MUST include createBranch and createTag operations.
 The Repo API MUST include setRemote and listRemotes operations.
 The Repo API MUST include revisionWalk and log operations.
 Log entries MUST expose oid and parent and author and committer fields.
+
+## Sparse Partial Clone Contracts
+
+The Repo API MUST include setSparseCheckout and sparseCheckoutSelect operations.
+The Repo API MUST include negotiatePartialCloneFilter and setPromisorObject and resolvePromisedObject operations.
