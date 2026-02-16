@@ -70,6 +70,34 @@ function requireReplayEvidence(repoRoot) {
   }
 }
 
+function requireRepoEvidence(repoRoot) {
+  const indexText = readText(path.join(repoRoot, "src", "index.ts"));
+  if (!indexText.includes("public async repoInfo(")) {
+    fail("repo parity implemented state requires Repo.repoInfo API.");
+  }
+  if (!indexText.includes("public async repoStructure(")) {
+    fail("repo parity implemented state requires Repo.repoStructure API.");
+  }
+
+  const testPath = path.join(repoRoot, "tests", "node", "repo-command-family.test.mjs");
+  if (!fs.existsSync(testPath)) {
+    fail("repo parity implemented state requires tests/node/repo-command-family.test.mjs.");
+  }
+  const testText = readText(testPath);
+  if (!testText.includes(".repoInfo(")) {
+    fail("repo parity implemented state requires repoInfo invocation in tests.");
+  }
+  if (!testText.includes(".repoStructure(")) {
+    fail("repo parity implemented state requires repoStructure invocation in tests.");
+  }
+  if (!/\["repo",\s*"info"/.test(testText)) {
+    fail("repo parity implemented state requires git repo info baseline checks.");
+  }
+  if (!/\["repo",\s*"structure"/.test(testText)) {
+    fail("repo parity implemented state requires git repo structure baseline checks.");
+  }
+}
+
 function requireLastModifiedEvidence(repoRoot) {
   const indexText = readText(path.join(repoRoot, "src", "index.ts"));
   if (!indexText.includes("public async lastModified(")) {
@@ -194,6 +222,9 @@ function main() {
   }
 
   const implementedFamilies = readImplementedFamiliesById(roadmap.families);
+  if (implementedFamilies.has("repo")) {
+    requireRepoEvidence(repoRoot);
+  }
   if (implementedFamilies.has("replay")) {
     requireReplayEvidence(repoRoot);
   }
