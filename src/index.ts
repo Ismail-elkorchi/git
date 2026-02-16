@@ -12,6 +12,7 @@ import {
 	encodeIndexV2,
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
+import { buildLogMetadata, type LogMetadata } from "./core/log/log.js";
 import { computeMergeOutcome, type MergeOutcome } from "./core/merge/merge.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
 import {
@@ -36,8 +37,18 @@ import {
 	normalizeRefName,
 	parsePackedRefs,
 } from "./core/refs/refs.js";
+import {
+	normalizeRemoteConfig,
+	type RemoteConfigEntry,
+	upsertRemoteConfig,
+} from "./core/remote/remote-config.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
 import { revertCommitPayload } from "./core/revert/revert.js";
+import {
+	type CommitNode,
+	type WalkMode,
+	walkCommits,
+} from "./core/revision-walk/walk.js";
 import {
 	addStashEntry,
 	dropStashEntry,
@@ -309,6 +320,10 @@ export class Repo {
 		return joinFsPath(this.gitDirPath, "stash-codex.json");
 	}
 
+	private remoteConfigPath(): string {
+		return joinFsPath(this.gitDirPath, "remotes-codex.json");
+	}
+
 	private async readRebaseState(
 		fs: NodeFsPromises,
 	): Promise<RebaseState | null> {
@@ -366,6 +381,49 @@ export class Repo {
 	): Promise<void> {
 		await fs.writeFile(
 			this.stashStatePath(),
+			JSON.stringify(entries, null, 2),
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
+	private async readRemoteEntries(
+		fs: NodeFsPromises,
+	): Promise<RemoteConfigEntry[]> {
+		const configPath = this.remoteConfigPath();
+		const exists = await pathExists(fs, configPath);
+		if (!exists) return [];
+		const text = String(
+			await fs.readFile(configPath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text);
+		if (!Array.isArray(parsed)) return [];
+
+		const out: RemoteConfigEntry[] = [];
+		for (const item of parsed) {
+			if (!item || typeof item !== "object") continue;
+			if (typeof item.name !== "string") continue;
+			if (typeof item.fetchRefspec !== "string") continue;
+			if (typeof item.pushRefspec !== "string") continue;
+			out.push({
+				name: item.name,
+				fetchRefspec: item.fetchRefspec,
+				pushRefspec: item.pushRefspec,
+			});
+		}
+
+		return normalizeRemoteConfig(out);
+	}
+
+	private async writeRemoteEntries(
+		fs: NodeFsPromises,
+		entries: RemoteConfigEntry[],
+	): Promise<void> {
+		await fs.writeFile(
+			this.remoteConfigPath(),
 			JSON.stringify(entries, null, 2),
 			{
 				encoding: "utf8",
@@ -648,6 +706,55 @@ export class Repo {
 		const entries = await this.readStashEntries(fs);
 		const next = dropStashEntry(entries, id);
 		await this.writeStashEntries(fs, next);
+	}
+
+	public async createBranch(name: string, targetOid: string): Promise<string> {
+		const refName = normalizeRefName(`heads/${name}`);
+		await this.updateRef(refName, targetOid, "branch-create");
+		return refName;
+	}
+
+	public async createTag(name: string, targetOid: string): Promise<string> {
+		const refName = normalizeRefName(`tags/${name}`);
+		await this.updateRef(refName, targetOid, "tag-create");
+		return refName;
+	}
+
+	public async setRemote(
+		name: string,
+		fetchRefspec: string,
+		pushRefspec: string,
+	): Promise<void> {
+		const fs = await loadNodeFs();
+		const current = await this.readRemoteEntries(fs);
+		const next = upsertRemoteConfig(current, {
+			name,
+			fetchRefspec,
+			pushRefspec,
+		});
+		await this.writeRemoteEntries(fs, next);
+	}
+
+	public async listRemotes(): Promise<RemoteConfigEntry[]> {
+		const fs = await loadNodeFs();
+		return this.readRemoteEntries(fs);
+	}
+
+	public revisionWalk(commits: CommitNode[], mode: WalkMode): CommitNode[] {
+		return walkCommits(commits, mode);
+	}
+
+	public log(
+		commits: CommitNode[],
+		author: string,
+		committer: string,
+		mode: WalkMode = "topo",
+	): LogMetadata[] {
+		return buildLogMetadata(
+			this.revisionWalk(commits, mode),
+			author,
+			committer,
+		);
 	}
 
 	public async fetchHttp(
