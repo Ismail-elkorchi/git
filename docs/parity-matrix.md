@@ -47,4 +47,4 @@ The parity matrix MUST define test evidence expectations for each command family
 ## Governance
 
 When any command family state changes, this file MUST be updated in the same pull request.
-Every implemented command family MUST have at least one CI gate that can falsify parity claims.
+Every implemented command family MUST have one or more CI gates that can falsify parity claims.
