@@ -880,6 +880,34 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("docs", /\blog\b/, "api-contract-log");
   });
 
+  handlers.set("INV-FEAT-0038", () => {
+    existsFile("src/core/diff/unified.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0038\b/, "inv-feat-0038-tests-token");
+    requireTreeMatch("tests", /@@ -1,2 \+1,3 @@/, "unified-hunk-header-token");
+  });
+
+  handlers.set("INV-FEAT-0039", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0039\b/, "inv-feat-0039-tests-token");
+    requireTreeMatch("src", /\bapplyPatch\b/, "repo-apply-patch-method");
+    requireTreeMatch("tests", /\breverse\b/, "apply-reverse-token");
+    requireTreeMatch("tests", /\bupdateIndex\b/, "apply-update-index-token");
+  });
+
+  handlers.set("INV-FEAT-0040", () => {
+    existsFile("src/core/blame/blame.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0040\b/, "inv-feat-0040-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "blame-oid-token");
+    requireTreeMatch("tests", /\bauthor\b/, "blame-author-token");
+  });
+
+  handlers.set("INV-SECU-0014", () => {
+    existsFile("src/core/apply/patch.ts");
+    requireTreeMatch("src/core/apply", /\bassertSafeWorktreePath\b/, "apply-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0014\b/, "inv-secu-0014-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape\.txt/, "apply-escape-counterexample");
+  });
+
   return handlers;
 }
 
