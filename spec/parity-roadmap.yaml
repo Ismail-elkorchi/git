@@ -84,7 +84,7 @@
 			"id": "refs",
 			"section": "newer-git-command-families",
 			"matrix_label": "`refs`",
-			"state": "partial"
+			"state": "implemented"
 		},
 		{
 			"id": "repo",

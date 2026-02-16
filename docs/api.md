@@ -8,6 +8,7 @@ The bun entry point MUST export createBunPorts.
 
 ## Branch Tag Remote Log Walk Contracts
 
+The Repo API MUST include createRef and listRefs and deleteRef and verifyRef operations.
 The Repo API MUST include createBranch and createTag operations.
 The Repo API MUST include setRemote and listRemotes operations.
 The Repo API MUST include revisionWalk and log operations.

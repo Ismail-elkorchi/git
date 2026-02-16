@@ -59,7 +59,9 @@ import {
 	startRebaseState,
 } from "./core/rebase/rebase-state.js";
 import {
+	dropPackedRefEntry,
 	formatReflogEntry,
+	matchesRefPrefix,
 	normalizeRefName,
 	parsePackedRefs,
 } from "./core/refs/refs.js";
@@ -156,6 +158,17 @@ type NodeFsPromises = {
 		path: string,
 		options?: { encoding?: string },
 	): Promise<string | Uint8Array>;
+	readdir(
+		path: string,
+		options: { withFileTypes: true },
+	): Promise<
+		Array<{
+			name: string;
+			isDirectory(): boolean;
+			isFile(): boolean;
+		}>
+	>;
+	unlink(path: string): Promise<void>;
 	stat(path: string): Promise<{ isDirectory(): boolean }>;
 };
 
@@ -1696,6 +1709,57 @@ export class Repo {
 		return bytes;
 	}
 
+	private async readPackedRefsMap(): Promise<Map<string, string>> {
+		const fs = await loadNodeFs();
+		const packedRefsPath = joinFsPath(this.gitDirPath, "packed-refs");
+		const packedExists = await pathExists(fs, packedRefsPath);
+		if (!packedExists) return new Map<string, string>();
+		const packedText = String(
+			await fs.readFile(packedRefsPath, {
+				encoding: "utf8",
+			}),
+		);
+		return parsePackedRefs(packedText);
+	}
+
+	private async readLooseRefsMap(): Promise<Map<string, string>> {
+		const fs = await loadNodeFs();
+		const refsRootPath = joinFsPath(this.gitDirPath, "refs");
+		const refsRootExists = await pathExists(fs, refsRootPath);
+		const out = new Map<string, string>();
+		if (!refsRootExists) return out;
+
+		const stack: Array<{ absPath: string; refPrefix: string }> = [
+			{ absPath: refsRootPath, refPrefix: "refs" },
+		];
+
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (!current) continue;
+			const entries = await fs.readdir(current.absPath, {
+				withFileTypes: true,
+			});
+			for (const entry of entries) {
+				const absPath = joinFsPath(current.absPath, entry.name);
+				const refName = `${current.refPrefix}/${entry.name}`;
+				if (entry.isDirectory()) {
+					stack.push({ absPath, refPrefix: refName });
+					continue;
+				}
+				if (!entry.isFile()) continue;
+				const looseValue = String(
+					await fs.readFile(absPath, {
+						encoding: "utf8",
+					}),
+				).trim();
+				if (!isObjectId(looseValue)) continue;
+				out.set(refName, looseValue);
+			}
+		}
+
+		return out;
+	}
+
 	public async resolveRef(refName: string): Promise<string | null> {
 		const fs = await loadNodeFs();
 		const normalizedRef = normalizeRefName(refName);
@@ -1710,15 +1774,98 @@ export class Repo {
 			if (isObjectId(looseValue)) return looseValue;
 		}
 
+		return (await this.readPackedRefsMap()).get(normalizedRef) ?? null;
+	}
+
+	public async createRef(
+		refName: string,
+		oid: string,
+		message = "refs-create",
+	): Promise<string> {
+		if (!isObjectId(oid)) {
+			throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
+		}
+		const normalizedRef = normalizeRefName(refName);
+		const existing = await this.resolveRef(normalizedRef);
+		if (existing !== null) {
+			throw new GitError("reference already exists", "ALREADY_EXISTS", {
+				refName: normalizedRef,
+			});
+		}
+		await this.updateRef(normalizedRef, oid, message);
+		return normalizedRef;
+	}
+
+	public async listRefs(
+		refPrefix = "refs",
+	): Promise<Array<{ refName: string; oid: string }>> {
+		const packedRefs = await this.readPackedRefsMap();
+		const looseRefs = await this.readLooseRefsMap();
+		const mergedRefs = new Map<string, string>(packedRefs);
+		for (const [refName, oid] of looseRefs) {
+			mergedRefs.set(refName, oid);
+		}
+
+		const out = [...mergedRefs.entries()]
+			.filter(([refName]) => matchesRefPrefix(refName, refPrefix))
+			.map(([refName, oid]) => ({ refName, oid }));
+		out.sort((a, b) => a.refName.localeCompare(b.refName));
+		return out;
+	}
+
+	public async verifyRef(
+		refName: string,
+		expectedOid: string,
+	): Promise<boolean> {
+		if (!isObjectId(expectedOid)) {
+			throw new GitError("invalid object id", "INVALID_ARGUMENT", {
+				expectedOid,
+			});
+		}
+		const actualOid = await this.resolveRef(refName);
+		return actualOid === expectedOid;
+	}
+
+	public async deleteRef(
+		refName: string,
+		message = "refs-delete",
+	): Promise<void> {
+		const fs = await loadNodeFs();
+		const normalizedRef = normalizeRefName(refName);
+		const oldOid = await this.resolveRef(normalizedRef);
+		if (oldOid === null) {
+			throw new GitError("reference not found", "NOT_FOUND", {
+				refName: normalizedRef,
+			});
+		}
+
+		const loosePath = joinFsPath(this.gitDirPath, normalizedRef);
+		const looseExists = await pathExists(fs, loosePath);
+		if (looseExists) {
+			await fs.unlink(loosePath);
+		}
+
 		const packedRefsPath = joinFsPath(this.gitDirPath, "packed-refs");
 		const packedExists = await pathExists(fs, packedRefsPath);
-		if (!packedExists) return null;
-		const packedText = String(
-			await fs.readFile(packedRefsPath, {
-				encoding: "utf8",
-			}),
-		);
-		return parsePackedRefs(packedText).get(normalizedRef) ?? null;
+		if (packedExists) {
+			const packedText = String(
+				await fs.readFile(packedRefsPath, {
+					encoding: "utf8",
+				}),
+			);
+			const dropped = dropPackedRefEntry(packedText, normalizedRef);
+			if (dropped.removed) {
+				await fs.writeFile(packedRefsPath, dropped.nextText, {
+					encoding: "utf8",
+				});
+			}
+		}
+
+		const reflogPath = joinFsPath(this.gitDirPath, "logs", normalizedRef);
+		await fs.mkdir(parentFsPath(reflogPath), { recursive: true });
+		const zeroOid = "0".repeat(oldOid.length);
+		const reflogEntry = formatReflogEntry(oldOid, zeroOid, message);
+		await fs.appendFile(reflogPath, reflogEntry, { encoding: "utf8" });
 	}
 
 	public async resolveHead(): Promise<string> {
