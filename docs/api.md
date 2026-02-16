@@ -23,3 +23,7 @@ The Repo API MUST include negotiatePartialCloneFilter and setPromisorObject and 
 The Repo API MUST include writeCommitGraph and readCommitGraph operations.
 The Repo API MUST include writeMultiPackIndex and readMultiPackIndex operations.
 The Repo API MUST include writeBitmapIndex and readBitmapIndex operations.
+
+## Maintenance Contracts
+
+The Repo API MUST include runMaintenance with gc and repack and prune stage progress events.

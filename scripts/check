@@ -985,6 +985,23 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\brev-list\b/, "bitmap-reachability-token");
   });
 
+  handlers.set("INV-FEAT-0048", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\brunMaintenance\b/, "repo-run-maintenance-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0048\b/, "inv-feat-0048-tests-token");
+    requireTreeMatch("tests", /\bgc\b/, "maintenance-gc-token");
+    requireTreeMatch("tests", /\brepack\b/, "maintenance-repack-token");
+    requireTreeMatch("tests", /\bprune\b/, "maintenance-prune-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "maintenance-show-ref-token");
+  });
+
+  handlers.set("INV-OPER-0003", () => {
+    existsFile("src/core/maintenance/maintenance.ts");
+    requireTreeMatch("src", /\bonProgress\b/, "maintenance-progress-callback-token");
+    requireTreeMatch("tests", /\bINV-OPER-0003\b/, "inv-oper-0003-tests-token");
+    requireTreeMatch("tests", /\["gc", "repack", "prune"\]/, "maintenance-progress-order-token");
+  });
+
   return handlers;
 }
 
