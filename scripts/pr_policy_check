@@ -13,12 +13,28 @@ function readJsonLike(absPath) {
   return JSON.parse(text);
 }
 
+function escapeRegexToken(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function globToRegex(glob) {
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  const withDoubleStar = escaped.replaceAll("\\*\\*", "§§DOUBLESTAR§§");
-  const withSingleStar = withDoubleStar.replaceAll("\\*", "[^/]*");
-  const withGlob = withSingleStar.replaceAll("§§DOUBLESTAR§§", ".*");
-  return new RegExp("^" + withGlob + "$");
+  let out = "^";
+  for (let i = 0; i < glob.length; i += 1) {
+    const ch = glob[i];
+    const next = glob[i + 1];
+    if (ch === "*" && next === "*") {
+      out += ".*";
+      i += 1;
+      continue;
+    }
+    if (ch === "*") {
+      out += "[^/]*";
+      continue;
+    }
+    out += escapeRegexToken(ch ?? "");
+  }
+  out += "$";
+  return new RegExp(out);
 }
 
 function getBranchName(repoRoot) {
