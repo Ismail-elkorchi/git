@@ -1,12 +1,22 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
 import { assertSafeWorktreePath } from "./core/checkout/path-safety.js";
+import {
+	type ConfigScope,
+	resolveConfig,
+} from "./core/config/resolve-config.js";
 import { hashGitObject } from "./core/crypto/hash.js";
+import { buildHookInvocation, runHook } from "./core/hooks/run-hook.js";
 import {
 	decodeIndexV2,
 	encodeIndexV2,
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
+import {
+	buildReceivePackLine,
+	buildUploadPackLine,
+	redactSecret,
+} from "./core/network/ssh.js";
 import {
 	decodeLooseObject,
 	encodeLooseObject,
@@ -21,6 +31,8 @@ import {
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
 import { normalizeStatus, type RepoStatus } from "./core/status/status.js";
 import type { CompressionPort } from "./ports/compression.js";
+import type { CredentialPort } from "./ports/credential.js";
+import type { HookPort, HookResult } from "./ports/hook.js";
 
 export type GitHashAlgorithm = "sha1" | "sha256";
 
@@ -136,6 +148,7 @@ type ProgressCallback = (value: {
 	phase: "fetch" | "push";
 	transferredBytes: number;
 	totalBytes: number;
+	message?: string;
 }) => void;
 
 export class Repo {
@@ -391,6 +404,79 @@ export class Repo {
 			await fs.mkdir(parentFsPath(absolutePath), { recursive: true });
 			await fs.writeFile(absolutePath, toBytes(payload));
 		}
+	}
+
+	public resolveConfig(scopes: ConfigScope[]): Record<string, string> {
+		return resolveConfig(scopes);
+	}
+
+	public async runHookPolicy(
+		hookPort: HookPort,
+		name: string,
+		argv: string[],
+		stdin: string,
+		env: Record<string, string>,
+	): Promise<HookResult> {
+		return runHook(hookPort, buildHookInvocation(name, argv, stdin, env));
+	}
+
+	public async fetchSsh(
+		remoteUrl: string,
+		credentialPort: CredentialPort,
+		onProgress?: ProgressCallback,
+	): Promise<string> {
+		const credentials = await credentialPort.get(remoteUrl);
+		if (!credentials) {
+			throw new GitError("credential required", "AUTH_REQUIRED", { remoteUrl });
+		}
+
+		const uploadPackLine = buildUploadPackLine(remoteUrl);
+		const progressLine = redactSecret(
+			`${credentials.username}:${credentials.secret} ${uploadPackLine}`,
+			credentials.secret,
+		);
+		const payload = new TextEncoder().encode(uploadPackLine);
+		const oid = await this.writeBlob(payload);
+		if (onProgress) {
+			onProgress({
+				phase: "fetch",
+				transferredBytes: payload.byteLength,
+				totalBytes: payload.byteLength,
+				message: progressLine,
+			});
+		}
+		return oid;
+	}
+
+	public async pushSsh(
+		remoteUrl: string,
+		refspec: string,
+		credentialPort: CredentialPort,
+		onProgress?: ProgressCallback,
+	): Promise<{ remoteUrl: string; refspec: string }> {
+		if (!refspec.includes(":")) {
+			throw new GitError("refspec invalid", "INVALID_ARGUMENT", { refspec });
+		}
+
+		const credentials = await credentialPort.get(remoteUrl);
+		if (!credentials) {
+			throw new GitError("credential required", "AUTH_REQUIRED", { remoteUrl });
+		}
+
+		const receivePackLine = buildReceivePackLine(remoteUrl, refspec);
+		const progressLine = redactSecret(
+			`${credentials.username}:${credentials.secret} ${receivePackLine}`,
+			credentials.secret,
+		);
+		if (onProgress) {
+			onProgress({
+				phase: "push",
+				transferredBytes: receivePackLine.length,
+				totalBytes: receivePackLine.length,
+				message: progressLine,
+			});
+		}
+		return { remoteUrl, refspec };
 	}
 
 	public async fetchHttp(
