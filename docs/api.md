@@ -27,3 +27,11 @@ The Repo API MUST include writeBitmapIndex and readBitmapIndex operations.
 ## Maintenance Contracts
 
 The Repo API MUST include runMaintenance with gc and repack and prune stage progress events.
+
+## Hardening Contracts
+
+The Repo API MUST include verifyCommitSignature and verifyTagSignature operations.
+The Repo API MUST include evaluateIgnore and evaluateAttributes operations.
+The Repo API MUST include addNote and getNote and removeNote operations.
+The Repo API MUST include addReplace and resolveReplace operations.
+The Repo API MUST include negotiateTransportCapabilities operation.
