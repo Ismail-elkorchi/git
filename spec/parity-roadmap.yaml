@@ -1,0 +1,114 @@
+{
+	"schema_version": 1,
+	"baseline_git_version": "2.53.0",
+	"families": [
+		{
+			"id": "hash-object-cat-file",
+			"section": "core-repository-data",
+			"matrix_label": "`hash-object`, `cat-file`",
+			"state": "implemented"
+		},
+		{
+			"id": "write-tree-commit-tree",
+			"section": "core-repository-data",
+			"matrix_label": "`write-tree`, `commit-tree`",
+			"state": "implemented"
+		},
+		{
+			"id": "pack-objects-index-pack-verify-pack",
+			"section": "core-repository-data",
+			"matrix_label": "`pack-objects`, `index-pack`, `verify-pack`",
+			"state": "implemented"
+		},
+		{
+			"id": "fsck",
+			"section": "core-repository-data",
+			"matrix_label": "`fsck`",
+			"state": "implemented"
+		},
+		{
+			"id": "gc-repack-prune-maintenance",
+			"section": "core-repository-data",
+			"matrix_label": "`gc`, `repack`, `prune`, `maintenance`",
+			"state": "implemented"
+		},
+		{
+			"id": "add-checkout-status-diff-apply-blame",
+			"section": "working-tree-and-history",
+			"matrix_label": "`add`, `checkout`, `status`, `diff`, `apply`, `blame`",
+			"state": "implemented"
+		},
+		{
+			"id": "merge-rebase-cherry-pick-revert-stash",
+			"section": "working-tree-and-history",
+			"matrix_label": "`merge`, `rebase`, `cherry-pick`, `revert`, `stash`",
+			"state": "implemented"
+		},
+		{
+			"id": "branch-tag-remote-log-revision-walk",
+			"section": "working-tree-and-history",
+			"matrix_label": "`branch`, `tag`, `remote`, `log`, revision walk",
+			"state": "implemented"
+		},
+		{
+			"id": "submodule-worktree",
+			"section": "working-tree-and-history",
+			"matrix_label": "`submodule`, `worktree`",
+			"state": "implemented"
+		},
+		{
+			"id": "sparse-checkout-partial-clone",
+			"section": "working-tree-and-history",
+			"matrix_label": "`sparse-checkout`, partial clone",
+			"state": "implemented"
+		},
+		{
+			"id": "smart-http-v2-fetch-push",
+			"section": "transport-and-protocol",
+			"matrix_label": "Smart HTTP v2 fetch and push",
+			"state": "implemented"
+		},
+		{
+			"id": "ssh-transport",
+			"section": "transport-and-protocol",
+			"matrix_label": "SSH transport",
+			"state": "implemented"
+		},
+		{
+			"id": "credential-helper-config-layering",
+			"section": "transport-and-protocol",
+			"matrix_label": "Credential helper and config layering",
+			"state": "implemented"
+		},
+		{
+			"id": "refs",
+			"section": "newer-git-command-families",
+			"matrix_label": "`refs`",
+			"state": "partial"
+		},
+		{
+			"id": "repo",
+			"section": "newer-git-command-families",
+			"matrix_label": "`repo`",
+			"state": "not-implemented"
+		},
+		{
+			"id": "backfill",
+			"section": "newer-git-command-families",
+			"matrix_label": "`backfill`",
+			"state": "not-implemented"
+		},
+		{
+			"id": "replay",
+			"section": "newer-git-command-families",
+			"matrix_label": "`replay`",
+			"state": "not-implemented"
+		},
+		{
+			"id": "last-modified",
+			"section": "newer-git-command-families",
+			"matrix_label": "`last-modified`",
+			"state": "not-implemented"
+		}
+	]
+}

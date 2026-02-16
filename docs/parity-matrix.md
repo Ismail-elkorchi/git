@@ -48,3 +48,4 @@ The parity matrix MUST define test evidence expectations for each command family
 
 When any command family state changes, this file MUST be updated in the same pull request.
 Every implemented command family MUST have one or more CI gates that can falsify parity claims.
+Rows in this file MUST match spec/parity-roadmap.yaml and scripts/parity_matrix_check.

@@ -34,6 +34,7 @@ jobs:
         run: |
           node scripts/banned_token_scan
           node scripts/pr_policy_check
+          node scripts/parity_matrix_check
 
   node_22:
     name: node_22

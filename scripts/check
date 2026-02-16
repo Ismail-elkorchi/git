@@ -1055,6 +1055,7 @@ function main() {
 
   run("node", ["scripts/banned_token_scan"], { cwd: repoRoot });
   run("node", ["scripts/pr_policy_check"], { cwd: repoRoot });
+  run("node", ["scripts/parity_matrix_check"], { cwd: repoRoot });
 
   run("npm", ["run", "-s", "lint"], { cwd: repoRoot });
   run("npm", ["run", "-s", "typecheck"], { cwd: repoRoot });
