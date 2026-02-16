@@ -760,6 +760,48 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("src/core/network", /\bservice query parameter\b/, "discovery-service-required");
   });
 
+  handlers.set("INV-FEAT-0025", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bfetchSsh\b/, "repo-fetch-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0025\b/, "inv-feat-0025-tests-token");
+    requireTreeMatch("tests", /\bupload-pack\b/, "upload-pack-negotiation-token");
+  });
+
+  handlers.set("INV-FEAT-0026", () => {
+    existsFile("src/core/network/ssh.ts");
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src", /\bpushSsh\b/, "repo-push-ssh-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0026\b/, "inv-feat-0026-tests-token");
+    requireTreeMatch("tests", /\breceive-pack\b/, "receive-pack-negotiation-token");
+    requireTreeMatch("tests", /\brefspec\b/, "refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0027", () => {
+    existsFile("src/core/config/resolve-config.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0027\b/, "inv-feat-0027-tests-token");
+    requireTreeMatch("src/core/config", /\bsystem\b/, "config-system-scope");
+    requireTreeMatch("src/core/config", /\bglobal\b/, "config-global-scope");
+    requireTreeMatch("src/core/config", /\blocal\b/, "config-local-scope");
+    requireTreeMatch("src/core/config", /\bworktree\b/, "config-worktree-scope");
+  });
+
+  handlers.set("INV-FEAT-0028", () => {
+    existsFile("src/core/hooks/run-hook.ts");
+    existsFile("src/ports/hook.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0028\b/, "inv-feat-0028-tests-token");
+    requireTreeMatch("tests", /\bargv\b/, "hook-argv-token");
+    requireTreeMatch("tests", /\bstdin\b/, "hook-stdin-token");
+    requireTreeMatch("tests", /\benv\b/, "hook-env-token");
+  });
+
+  handlers.set("INV-SECU-0013", () => {
+    existsFile("src/ports/credential.ts");
+    requireTreeMatch("src/core/network", /\bredactSecret\b/, "credential-redaction-token");
+    requireTreeMatch("tests", /\bINV-SECU-0013\b/, "inv-secu-0013-tests-token");
+    requireTreeMatch("tests", /every\(\(event\) => !String\(event\.message/, "progress-redaction-assertion");
+  });
+
   return handlers;
 }
 
