@@ -17,3 +17,9 @@ Log entries MUST expose oid and parent and author and committer fields.
 
 The Repo API MUST include setSparseCheckout and sparseCheckoutSelect operations.
 The Repo API MUST include negotiatePartialCloneFilter and setPromisorObject and resolvePromisedObject operations.
+
+## Graph Index Bitmap Contracts
+
+The Repo API MUST include writeCommitGraph and readCommitGraph operations.
+The Repo API MUST include writeMultiPackIndex and readMultiPackIndex operations.
+The Repo API MUST include writeBitmapIndex and readBitmapIndex operations.

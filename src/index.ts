@@ -1,8 +1,13 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
 import { applyUnifiedPatch } from "./core/apply/patch.js";
+import {
+	assertBitmapBytes,
+	normalizePackBaseName,
+} from "./core/bitmap/file.js";
 import { type BlameTuple, normalizeBlame } from "./core/blame/blame.js";
 import { assertSafeWorktreePath } from "./core/checkout/path-safety.js";
 import { cherryPickCommitPayload } from "./core/cherry-pick/cherry-pick.js";
+import { assertCommitGraphBytes } from "./core/commit-graph/file.js";
 import {
 	type ConfigScope,
 	resolveConfig,
@@ -17,6 +22,7 @@ import {
 } from "./core/index/index-v2.js";
 import { buildLogMetadata, type LogMetadata } from "./core/log/log.js";
 import { computeMergeOutcome, type MergeOutcome } from "./core/merge/merge.js";
+import { assertMultiPackIndexBytes } from "./core/multi-pack-index/file.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
 import {
 	buildReceivePackLine,
@@ -1265,6 +1271,123 @@ export class Repo {
 			});
 		}
 		return this.readObject(oid);
+	}
+
+	public async writeCommitGraph(commitGraphBytes: Uint8Array): Promise<string> {
+		assertCommitGraphBytes(commitGraphBytes);
+		const fs = await loadNodeFs();
+		const infoDir = joinFsPath(this.gitDirPath, "objects", "info");
+		const filePath = joinFsPath(infoDir, "commit-graph");
+		await fs.mkdir(infoDir, { recursive: true });
+		await fs.writeFile(filePath, commitGraphBytes);
+		return filePath;
+	}
+
+	public async readCommitGraph(): Promise<Uint8Array> {
+		const fs = await loadNodeFs();
+		const filePath = joinFsPath(
+			this.gitDirPath,
+			"objects",
+			"info",
+			"commit-graph",
+		);
+		const exists = await pathExists(fs, filePath);
+		if (!exists) {
+			throw new GitError("commit-graph file missing", "NOT_FOUND", {
+				filePath,
+			});
+		}
+		const bytes = await fs.readFile(filePath);
+		if (!(bytes instanceof Uint8Array)) {
+			throw new GitError(
+				"commit-graph payload invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					filePath,
+				},
+			);
+		}
+		assertCommitGraphBytes(bytes);
+		return bytes;
+	}
+
+	public async writeMultiPackIndex(
+		multiPackIndexBytes: Uint8Array,
+	): Promise<string> {
+		assertMultiPackIndexBytes(multiPackIndexBytes);
+		const fs = await loadNodeFs();
+		const packDir = joinFsPath(this.gitDirPath, "objects", "pack");
+		const filePath = joinFsPath(packDir, "multi-pack-index");
+		await fs.mkdir(packDir, { recursive: true });
+		await fs.writeFile(filePath, multiPackIndexBytes);
+		return filePath;
+	}
+
+	public async readMultiPackIndex(): Promise<Uint8Array> {
+		const fs = await loadNodeFs();
+		const filePath = joinFsPath(
+			this.gitDirPath,
+			"objects",
+			"pack",
+			"multi-pack-index",
+		);
+		const exists = await pathExists(fs, filePath);
+		if (!exists) {
+			throw new GitError("multi-pack-index file missing", "NOT_FOUND", {
+				filePath,
+			});
+		}
+		const bytes = await fs.readFile(filePath);
+		if (!(bytes instanceof Uint8Array)) {
+			throw new GitError(
+				"multi-pack-index payload invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					filePath,
+				},
+			);
+		}
+		assertMultiPackIndexBytes(bytes);
+		return bytes;
+	}
+
+	public async writeBitmapIndex(
+		packBaseName: string,
+		bitmapBytes: Uint8Array,
+	): Promise<string> {
+		const normalizedBaseName = normalizePackBaseName(packBaseName);
+		assertBitmapBytes(bitmapBytes);
+		const fs = await loadNodeFs();
+		const packDir = joinFsPath(this.gitDirPath, "objects", "pack");
+		await fs.mkdir(packDir, { recursive: true });
+		const filePath = joinFsPath(packDir, `${normalizedBaseName}.bitmap`);
+		await fs.writeFile(filePath, bitmapBytes);
+		return filePath;
+	}
+
+	public async readBitmapIndex(packBaseName: string): Promise<Uint8Array> {
+		const normalizedBaseName = normalizePackBaseName(packBaseName);
+		const fs = await loadNodeFs();
+		const filePath = joinFsPath(
+			this.gitDirPath,
+			"objects",
+			"pack",
+			`${normalizedBaseName}.bitmap`,
+		);
+		const exists = await pathExists(fs, filePath);
+		if (!exists) {
+			throw new GitError("bitmap index file missing", "NOT_FOUND", {
+				filePath,
+			});
+		}
+		const bytes = await fs.readFile(filePath);
+		if (!(bytes instanceof Uint8Array)) {
+			throw new GitError("bitmap payload invalid", "OBJECT_FORMAT_ERROR", {
+				filePath,
+			});
+		}
+		assertBitmapBytes(bytes);
+		return bytes;
 	}
 
 	public async resolveRef(refName: string): Promise<string | null> {
