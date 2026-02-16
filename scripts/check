@@ -581,6 +581,27 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /--object-format=sha256/i, "sha256-git-baseline");
   });
 
+  handlers.set("INV-FEAT-0007", () => {
+    existsFile("src/ports/compression.ts");
+    existsFile("src/core/compress/limits.ts");
+    existsFile("src/adapters/web-compression.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0007\b/, "inv-feat-0007-tests-token");
+    requireTreeMatch("src/core/compress", /\bmaxInflatedBytes\b/, "inflate-limits-bytes");
+    requireTreeMatch("src/core/compress", /\bmaxInflateRatio\b/, "inflate-limits-ratio");
+  });
+
+  handlers.set("INV-SECU-0006", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b134_?217_?728\b/, "default-max-inflated-bytes");
+    requireTreeMatch("tests", /\bINV-SECU-0006\b/, "inv-secu-0006-tests-token");
+  });
+
+  handlers.set("INV-SECU-0007", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b200\b/, "default-max-inflate-ratio");
+    requireTreeMatch("tests", /\bINV-SECU-0007\b/, "inv-secu-0007-tests-token");
+  });
+
   return handlers;
 }
 
