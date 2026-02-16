@@ -175,31 +175,44 @@ function main() {
 
   const baseRef = process.env.GITHUB_BASE_REF || "main";
   const branch = getBranchName(repoRoot);
+  const basePhase = readBaseStatePhase(repoRoot, baseRef);
+  const changed = getChangedFiles(repoRoot, baseRef);
+  const isPostPlanMaintenance = basePhase >= plan.total_phases;
 
   if (state.current_phase < 1) fail("state.yaml current_phase MUST be >= 1 on pull requests.");
-  const phase = plan.phases.find((p) => p.phase === state.current_phase);
-  if (!phase) fail("phase lookup failure.");
-  if (branch !== phase.branch) fail(`branch mismatch: ${branch} ${phase.branch}`);
 
-  const changed = getChangedFiles(repoRoot, baseRef);
+  let expectedTitle = "";
+  if (isPostPlanMaintenance) {
+    if (state.current_phase !== plan.total_phases) {
+      fail("state.yaml current_phase MUST stay equal to total_phases after plan completion.");
+    }
+    if (changed.includes("spec/state.yaml")) {
+      fail("spec/state.yaml MUST NOT change after plan completion.");
+    }
+    if (changed.includes("spec/phase-plan.yaml")) {
+      fail("spec/phase-plan.yaml MUST NOT change after plan completion.");
+    }
+  } else {
+    const phase = plan.phases.find((p) => p.phase === state.current_phase);
+    if (!phase) fail("phase lookup failure.");
+    if (branch !== phase.branch) fail(`branch mismatch: ${branch} ${phase.branch}`);
+    if (!changed.includes("spec/state.yaml")) fail("spec/state.yaml MUST be modified on pull requests.");
+    if (state.current_phase !== basePhase + 1) fail("state.yaml current_phase MUST advance by exactly 1.");
 
-  if (!changed.includes("spec/state.yaml")) fail("spec/state.yaml MUST be modified on pull requests.");
+    const allow = phase.allowed_paths.map(globToRegex);
+    const deny = phase.denied_paths.map(globToRegex);
 
-  const basePhase = readBaseStatePhase(repoRoot, baseRef);
-  if (state.current_phase !== basePhase + 1) fail("state.yaml current_phase MUST advance by exactly 1.");
+    for (const f of changed) {
+      const isAllowed = allow.some((re) => re.test(f));
+      if (!isAllowed) fail(`file outside allowlist: ${f}`);
+      const isDenied = deny.some((re) => re.test(f));
+      if (isDenied) fail(`file in denylist: ${f}`);
+    }
 
-  const allow = phase.allowed_paths.map(globToRegex);
-  const deny = phase.denied_paths.map(globToRegex);
-
-  for (const f of changed) {
-    const isAllowed = allow.some((re) => re.test(f));
-    if (!isAllowed) fail(`file outside allowlist: ${f}`);
-    const isDenied = deny.some((re) => re.test(f));
-    if (isDenied) fail(`file in denylist: ${f}`);
-  }
-
-  if (state.current_phase > 1) {
-    if (changed.includes("spec/phase-plan.yaml")) fail("spec/phase-plan.yaml MUST NOT change after phase 1.");
+    if (state.current_phase > 1) {
+      if (changed.includes("spec/phase-plan.yaml")) fail("spec/phase-plan.yaml MUST NOT change after phase 1.");
+    }
+    expectedTitle = phase.title;
   }
 
   const payload = readPullRequestPayload();
@@ -208,7 +221,9 @@ function main() {
 
   const prTitle = String(pr.title || "").trim();
   if (prTitle.length === 0) fail("pull request title is empty.");
-  if (prTitle !== phase.title) fail(`pull request title mismatch: ${prTitle} ${phase.title}`);
+  if (!isPostPlanMaintenance && prTitle !== expectedTitle) {
+    fail(`pull request title mismatch: ${prTitle} ${expectedTitle}`);
+  }
 
   const prBody = String(pr.body || "");
   if (prBody.trim().length === 0) fail("pull request body is empty.");
