@@ -102,7 +102,7 @@
 			"id": "replay",
 			"section": "newer-git-command-families",
 			"matrix_label": "`replay`",
-			"state": "not-implemented"
+			"state": "implemented"
 		},
 		{
 			"id": "last-modified",

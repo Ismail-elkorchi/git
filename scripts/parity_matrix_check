@@ -43,6 +43,33 @@ function parseMatrixRows(markdownText) {
   return rows;
 }
 
+function readImplementedFamiliesById(roadmapFamilies) {
+  const out = new Set();
+  for (const family of roadmapFamilies) {
+    if (family.state === "implemented") out.add(family.id);
+  }
+  return out;
+}
+
+function requireReplayEvidence(repoRoot) {
+  const indexText = readText(path.join(repoRoot, "src", "index.ts"));
+  if (!indexText.includes("public async replay(")) {
+    fail("replay parity implemented state requires Repo.replay API.");
+  }
+
+  const replayTestPath = path.join(repoRoot, "tests", "node", "replay.test.mjs");
+  if (!fs.existsSync(replayTestPath)) {
+    fail("replay parity implemented state requires tests/node/replay.test.mjs.");
+  }
+  const replayTestText = readText(replayTestPath);
+  if (!replayTestText.includes(".replay(")) {
+    fail("replay parity implemented state requires replay invocation in tests.");
+  }
+  if (!/\["apply",\s*"/.test(replayTestText)) {
+    fail("replay parity implemented state requires git apply baseline checks.");
+  }
+}
+
 function main() {
   const repoRoot = process.cwd();
   const roadmapPath = path.join(repoRoot, "spec", "parity-roadmap.yaml");
@@ -142,6 +169,11 @@ function main() {
 
   for (const label of roadmapByLabel.keys()) {
     if (!matrixLabelSet.has(label)) fail(`parity roadmap row missing from matrix ${label}.`);
+  }
+
+  const implementedFamilies = readImplementedFamiliesById(roadmap.families);
+  if (implementedFamilies.has("replay")) {
+    requireReplayEvidence(repoRoot);
   }
 
   process.stdout.write("OK parity_matrix_check\n");
