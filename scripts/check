@@ -697,6 +697,69 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /deepEqual\(statusA,\s*statusB\)/, "status-determinism-check");
   });
 
+  handlers.set("INV-FEAT-0009", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\breadObjectFromPack\b/, "repo-read-object-from-pack");
+    requireTreeMatch("tests", /\bINV-FEAT-0009\b/, "inv-feat-0009-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0010", () => {
+    existsFile("src/core/pack/pack-files.ts");
+    requireTreeMatch("src", /\bwritePackBundle\b/, "repo-write-pack-bundle");
+    requireTreeMatch("tests", /\bverify-pack\b/i, "git-verify-pack-baseline");
+    requireTreeMatch("tests", /\bINV-FEAT-0010\b/, "inv-feat-0010-tests-token");
+  });
+
+  handlers.set("INV-FEAT-0020", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0020\b/, "inv-feat-0020-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack&x=1/, "discovery-multi-query-reject");
+  });
+
+  handlers.set("INV-FEAT-0021", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bfetchHttp\b/, "repo-fetch-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0021\b/, "inv-feat-0021-tests-token");
+    requireTreeMatch("tests", /service=git-upload-pack/, "fetch-http-service-query");
+  });
+
+  handlers.set("INV-FEAT-0022", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("src", /\bpushHttp\b/, "repo-push-http-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0022\b/, "inv-feat-0022-tests-token");
+    requireTreeMatch("tests", /service=git-receive-pack/, "push-http-service-query");
+  });
+
+  handlers.set("INV-OPER-0001", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-OPER-0001\b/, "inv-oper-0001-tests-token");
+    requireTreeMatch("src", /\bonProgress\b/, "network-progress-callback");
+  });
+
+  handlers.set("INV-SECU-0005", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65520\b/, "pkt-line-total-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0005\b/, "inv-secu-0005-tests-token");
+  });
+
+  handlers.set("INV-SECU-0008", () => {
+    existsFile("src/core/compress/limits.ts");
+    requireTreeMatch("src/core/compress", /\b50\b/, "default-max-delta-chain-depth");
+    requireTreeMatch("tests", /\bINV-SECU-0008\b/, "inv-secu-0008-tests-token");
+  });
+
+  handlers.set("INV-SECU-0009", () => {
+    existsFile("src/core/protocol/pkt-line.ts");
+    requireTreeMatch("src/core/protocol", /\b65516\b/, "pkt-line-data-limit");
+    requireTreeMatch("tests", /\bINV-SECU-0009\b/, "inv-secu-0009-tests-token");
+  });
+
+  handlers.set("INV-SECU-0010", () => {
+    existsFile("src/core/network/discovery.ts");
+    requireTreeMatch("tests", /\bINV-SECU-0010\b/, "inv-secu-0010-tests-token");
+    requireTreeMatch("src/core/network", /\bservice query parameter\b/, "discovery-service-required");
+  });
+
   return handlers;
 }
 

@@ -5,6 +5,7 @@ import type {
 
 export const DEFAULT_MAX_INFLATED_BYTES = 134_217_728;
 export const DEFAULT_MAX_INFLATE_RATIO = 200;
+export const DEFAULT_MAX_DELTA_CHAIN_DEPTH = 50;
 
 export function resolveInflateLimits(
 	input: InflateLimitsInput = {},
