@@ -958,6 +958,33 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\bINTEGRITY_ERROR\b/, "promised-object-integrity-error-token");
   });
 
+  handlers.set("INV-FEAT-0045", () => {
+    existsFile("src/core/commit-graph/file.ts");
+    requireTreeMatch("src", /\bwriteCommitGraph\b/, "repo-write-commit-graph-method");
+    requireTreeMatch("src", /\breadCommitGraph\b/, "repo-read-commit-graph-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0045\b/, "inv-feat-0045-tests-token");
+    requireTreeMatch("tests", /\bcommit-graph\b/, "commit-graph-token");
+    requireTreeMatch("tests", /\bverify\b/, "commit-graph-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0046", () => {
+    existsFile("src/core/multi-pack-index/file.ts");
+    requireTreeMatch("src", /\bwriteMultiPackIndex\b/, "repo-write-multi-pack-index-method");
+    requireTreeMatch("src", /\breadMultiPackIndex\b/, "repo-read-multi-pack-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0046\b/, "inv-feat-0046-tests-token");
+    requireTreeMatch("tests", /\bmulti-pack-index\b/, "multi-pack-index-token");
+    requireTreeMatch("tests", /\bverify\b/, "multi-pack-index-verify-token");
+  });
+
+  handlers.set("INV-FEAT-0047", () => {
+    existsFile("src/core/bitmap/file.ts");
+    requireTreeMatch("src", /\bwriteBitmapIndex\b/, "repo-write-bitmap-index-method");
+    requireTreeMatch("src", /\breadBitmapIndex\b/, "repo-read-bitmap-index-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0047\b/, "inv-feat-0047-tests-token");
+    requireTreeMatch("tests", /\bbitmap\b/, "bitmap-token");
+    requireTreeMatch("tests", /\brev-list\b/, "bitmap-reachability-token");
+  });
+
   return handlers;
 }
 
