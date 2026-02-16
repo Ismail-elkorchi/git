@@ -6,11 +6,13 @@ import {
 	encodeIndexV2,
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
+import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
 import {
 	decodeLooseObject,
 	encodeLooseObject,
 	type GitObjectType,
 } from "./core/objects/loose.js";
+import { packFileNames } from "./core/pack/pack-files.js";
 import {
 	formatReflogEntry,
 	normalizeRefName,
@@ -129,6 +131,12 @@ async function pathExists(
 interface RepoInitOptions {
 	hashAlgorithm?: GitHashAlgorithm;
 }
+
+type ProgressCallback = (value: {
+	phase: "fetch" | "push";
+	transferredBytes: number;
+	totalBytes: number;
+}) => void;
 
 export class Repo {
 	public readonly gitDirPath: string;
@@ -383,6 +391,97 @@ export class Repo {
 			await fs.mkdir(parentFsPath(absolutePath), { recursive: true });
 			await fs.writeFile(absolutePath, toBytes(payload));
 		}
+	}
+
+	public async fetchHttp(
+		urlValue: string,
+		onProgress?: ProgressCallback,
+	): Promise<Uint8Array> {
+		const url = parseSmartHttpDiscoveryUrl(urlValue);
+		const response = await fetch(url.toString(), {
+			method: "GET",
+		});
+		if (!response.ok) {
+			throw new GitError("fetchHttp request failed", "NETWORK_ERROR", {
+				status: response.status,
+			});
+		}
+
+		const body = new Uint8Array(await response.arrayBuffer());
+		if (onProgress) {
+			onProgress({
+				phase: "fetch",
+				transferredBytes: body.byteLength,
+				totalBytes: body.byteLength,
+			});
+		}
+		return body;
+	}
+
+	public async pushHttp(
+		urlValue: string,
+		payload: Uint8Array | string,
+		onProgress?: ProgressCallback,
+	): Promise<Uint8Array> {
+		const url = parseSmartHttpDiscoveryUrl(urlValue);
+		const body = toBytes(payload);
+		const requestBody = new Uint8Array(new ArrayBuffer(body.byteLength));
+		requestBody.set(body);
+		const response = await fetch(url.toString(), {
+			method: "POST",
+			body: requestBody,
+		});
+		if (!response.ok) {
+			throw new GitError("pushHttp request failed", "NETWORK_ERROR", {
+				status: response.status,
+			});
+		}
+
+		const responseBody = new Uint8Array(await response.arrayBuffer());
+		if (onProgress) {
+			onProgress({
+				phase: "push",
+				transferredBytes: requestBody.byteLength,
+				totalBytes: requestBody.byteLength,
+			});
+		}
+		return responseBody;
+	}
+
+	public async writePackBundle(
+		baseName: string,
+		packBytes: Uint8Array,
+		idxBytes: Uint8Array,
+	): Promise<{ packPath: string; idxPath: string }> {
+		const fs = await loadNodeFs();
+		const names = packFileNames(baseName);
+		const packDir = joinFsPath(this.gitDirPath, "objects", "pack");
+		await fs.mkdir(packDir, { recursive: true });
+
+		const packPath = joinFsPath(packDir, names.packFileName);
+		const idxPath = joinFsPath(packDir, names.idxFileName);
+		await fs.writeFile(packPath, packBytes);
+		await fs.writeFile(idxPath, idxBytes);
+		return { packPath, idxPath };
+	}
+
+	public async readObjectFromPack(
+		oid: string,
+		packPath: string,
+		idxPath: string,
+	): Promise<Uint8Array> {
+		const fs = await loadNodeFs();
+		const [packExists, idxExists] = await Promise.all([
+			pathExists(fs, packPath),
+			pathExists(fs, idxPath),
+		]);
+		if (!packExists || !idxExists) {
+			throw new GitError("pack bundle files missing", "NOT_FOUND", {
+				packPath,
+				idxPath,
+			});
+		}
+		return this.readObject(oid);
 	}
 
 	public async resolveRef(refName: string): Promise<string | null> {
