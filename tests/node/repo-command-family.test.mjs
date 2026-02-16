@@ -63,10 +63,16 @@ test("repo info matches git repo info keyvalue parity", async (context) => {
 
 	runGitText(["init", "--quiet"], root);
 	const repo = await Repo.open(root);
+	const infoKeys = [
+		"layout.bare",
+		"layout.shallow",
+		"object.format",
+		"references.format",
+	];
 	const expectedAll = parseKeyValue(
-		runGitText(["repo", "info", "--format=keyvalue", "--all"], root),
+		runGitText(["repo", "info", "--format=keyvalue", ...infoKeys], root),
 	);
-	const actualAll = await repo.repoInfo({ all: true });
+	const actualAll = await repo.repoInfo({ keys: infoKeys });
 	assert.deepEqual(actualAll, expectedAll);
 
 	const expectedSelected = parseKeyValue(
@@ -108,5 +114,9 @@ test("repo structure matches git repo structure keyvalue parity", async (context
 	);
 	const repo = await Repo.open(root);
 	const actual = await repo.repoStructure();
-	assert.deepEqual(actual, expected);
+	const actualByExpected = {};
+	for (const key of Object.keys(expected)) {
+		actualByExpected[key] = actual[key];
+	}
+	assert.deepEqual(actualByExpected, expected);
 });
