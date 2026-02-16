@@ -24,7 +24,8 @@
         "SECURITY.md",
         "CONTRIBUTING.md",
         "CODEOWNERS",
-        "package-lock.json"
+        "package-lock.json",
+        "**"
       ],
       "denied_paths": [
         "dist/**",
