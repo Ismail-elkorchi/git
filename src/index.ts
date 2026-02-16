@@ -1,5 +1,6 @@
 import { WebCompressionAdapter } from "./adapters/web-compression.js";
 import { assertSafeWorktreePath } from "./core/checkout/path-safety.js";
+import { cherryPickCommitPayload } from "./core/cherry-pick/cherry-pick.js";
 import {
 	type ConfigScope,
 	resolveConfig,
@@ -11,6 +12,7 @@ import {
 	encodeIndexV2,
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
+import { computeMergeOutcome, type MergeOutcome } from "./core/merge/merge.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
 import {
 	buildReceivePackLine,
@@ -24,11 +26,24 @@ import {
 } from "./core/objects/loose.js";
 import { packFileNames } from "./core/pack/pack-files.js";
 import {
+	abortRebaseState,
+	continueRebaseState,
+	type RebaseState,
+	startRebaseState,
+} from "./core/rebase/rebase-state.js";
+import {
 	formatReflogEntry,
 	normalizeRefName,
 	parsePackedRefs,
 } from "./core/refs/refs.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
+import { revertCommitPayload } from "./core/revert/revert.js";
+import {
+	addStashEntry,
+	dropStashEntry,
+	normalizeStash,
+	type StashEntry,
+} from "./core/stash/stash.js";
 import { normalizeStatus, type RepoStatus } from "./core/status/status.js";
 import type { CompressionPort } from "./ports/compression.js";
 import type { CredentialPort } from "./ports/credential.js";
@@ -286,6 +301,78 @@ export class Repo {
 		await fs.writeFile(indexPath, encodeIndexV2(index));
 	}
 
+	private rebaseStatePath(): string {
+		return joinFsPath(this.gitDirPath, "rebase-codex", "state.json");
+	}
+
+	private stashStatePath(): string {
+		return joinFsPath(this.gitDirPath, "stash-codex.json");
+	}
+
+	private async readRebaseState(
+		fs: NodeFsPromises,
+	): Promise<RebaseState | null> {
+		const statePath = this.rebaseStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return null;
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		return JSON.parse(text) as RebaseState;
+	}
+
+	private async writeRebaseState(
+		fs: NodeFsPromises,
+		state: RebaseState,
+	): Promise<void> {
+		const statePath = this.rebaseStatePath();
+		await fs.mkdir(parentFsPath(statePath), { recursive: true });
+		await fs.writeFile(statePath, JSON.stringify(state, null, 2), {
+			encoding: "utf8",
+		});
+	}
+
+	private async readStashEntries(fs: NodeFsPromises): Promise<StashEntry[]> {
+		const stashPath = this.stashStatePath();
+		const exists = await pathExists(fs, stashPath);
+		if (!exists) return [];
+		const text = String(
+			await fs.readFile(stashPath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text);
+		if (!Array.isArray(parsed)) return [];
+		const out: StashEntry[] = [];
+		for (const item of parsed) {
+			if (!item || typeof item !== "object") continue;
+			if (typeof item.id !== "string") continue;
+			if (typeof item.message !== "string") continue;
+			if (typeof item.treeOid !== "string") continue;
+			out.push({
+				id: item.id,
+				message: item.message,
+				treeOid: item.treeOid,
+			});
+		}
+		return normalizeStash(out);
+	}
+
+	private async writeStashEntries(
+		fs: NodeFsPromises,
+		entries: StashEntry[],
+	): Promise<void> {
+		await fs.writeFile(
+			this.stashStatePath(),
+			JSON.stringify(entries, null, 2),
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
 	private async writeLooseObject(
 		objectType: GitObjectType,
 		payload: Uint8Array,
@@ -477,6 +564,90 @@ export class Repo {
 			});
 		}
 		return { remoteUrl, refspec };
+	}
+
+	public mergeCommits(
+		currentHead: string,
+		targetHead: string,
+		allowFastForward = true,
+	): MergeOutcome {
+		return computeMergeOutcome(currentHead, targetHead, allowFastForward);
+	}
+
+	public async rebaseStart(
+		originalHead: string,
+		onto: string,
+		steps: string[],
+	): Promise<RebaseState> {
+		const fs = await loadNodeFs();
+		const state = startRebaseState(originalHead, onto, steps);
+		await this.writeRebaseState(fs, state);
+		return state;
+	}
+
+	public async rebaseContinue(): Promise<RebaseState> {
+		const fs = await loadNodeFs();
+		const state = await this.readRebaseState(fs);
+		if (!state) {
+			throw new GitError("rebase state missing", "NOT_FOUND", {});
+		}
+		const next = continueRebaseState(state);
+		await this.writeRebaseState(fs, next);
+		return next;
+	}
+
+	public async rebaseAbort(): Promise<RebaseState> {
+		const fs = await loadNodeFs();
+		const state = await this.readRebaseState(fs);
+		if (!state) {
+			throw new GitError("rebase state missing", "NOT_FOUND", {});
+		}
+		const aborted = abortRebaseState(state);
+		await this.writeRebaseState(fs, aborted);
+		return aborted;
+	}
+
+	public async cherryPick(treeOid: string, parentOid: string): Promise<string> {
+		const payload = cherryPickCommitPayload(treeOid, parentOid);
+		return this.writeCommit(payload);
+	}
+
+	public async revert(treeOid: string, parentOid: string): Promise<string> {
+		const payload = revertCommitPayload(treeOid, parentOid);
+		return this.writeCommit(payload);
+	}
+
+	public async stashSave(message: string, treeOid: string): Promise<string> {
+		const fs = await loadNodeFs();
+		const current = await this.readStashEntries(fs);
+		const next = addStashEntry(current, message, treeOid);
+		await this.writeStashEntries(fs, next);
+		const first = next[0];
+		if (!first) {
+			throw new GitError("stash save failure", "INTEGRITY_ERROR", {});
+		}
+		return first.id;
+	}
+
+	public async stashList(): Promise<StashEntry[]> {
+		const fs = await loadNodeFs();
+		return this.readStashEntries(fs);
+	}
+
+	public async stashApply(id: string): Promise<StashEntry> {
+		const entries = await this.stashList();
+		const found = entries.find((entry) => entry.id === id);
+		if (!found) {
+			throw new GitError("stash entry missing", "NOT_FOUND", { id });
+		}
+		return found;
+	}
+
+	public async stashDrop(id: string): Promise<void> {
+		const fs = await loadNodeFs();
+		const entries = await this.readStashEntries(fs);
+		const next = dropStashEntry(entries, id);
+		await this.writeStashEntries(fs, next);
 	}
 
 	public async fetchHttp(

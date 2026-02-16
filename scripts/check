@@ -802,6 +802,39 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /every\(\(event\) => !String\(event\.message/, "progress-redaction-assertion");
   });
 
+  handlers.set("INV-FEAT-0029", () => {
+    existsFile("src/core/merge/merge.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0029\b/, "inv-feat-0029-tests-token");
+    requireTreeMatch("tests", /\bfast-forward\b/, "merge-fast-forward-token");
+    requireTreeMatch("tests", /\bmerge-commit\b/, "merge-commit-token");
+  });
+
+  handlers.set("INV-FEAT-0030", () => {
+    existsFile("src/core/rebase/rebase-state.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0030\b/, "inv-feat-0030-tests-token");
+    requireTreeMatch("tests", /\brebaseContinue\b/, "rebase-continue-token");
+    requireTreeMatch("tests", /\brebaseAbort\b/, "rebase-abort-token");
+  });
+
+  handlers.set("INV-FEAT-0031", () => {
+    existsFile("src/core/cherry-pick/cherry-pick.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0031\b/, "inv-feat-0031-tests-token");
+    requireTreeMatch("tests", /\bcherryPick\b/, "cherry-pick-token");
+  });
+
+  handlers.set("INV-FEAT-0032", () => {
+    existsFile("src/core/revert/revert.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0032\b/, "inv-feat-0032-tests-token");
+    requireTreeMatch("tests", /\brevert\b/, "revert-token");
+  });
+
+  handlers.set("INV-FEAT-0033", () => {
+    existsFile("src/core/stash/stash.ts");
+    requireTreeMatch("tests", /\bINV-FEAT-0033\b/, "inv-feat-0033-tests-token");
+    requireTreeMatch("tests", /stash@\{0\}/, "stash-ref-token");
+    requireTreeMatch("tests", /\bstashDrop\b/, "stash-drop-token");
+  });
+
   return handlers;
 }
 
