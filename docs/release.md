@@ -1,6 +1,18 @@
-# Release
+# Release Workflow
 
-The repository MUST pass npm pack before publishing.
-The repository MUST pass npx jsr publish --dry-run before publishing.
-The repository MUST tag releases in git.
-The repository MUST publish only from main.
+## Preconditions
+
+- The repository MUST be on a clean working tree.
+- `spec/state.yaml` MUST equal `total_phases`.
+- `node scripts/check --runtime=node --mode=publish` MUST exit with code 0.
+
+## Commands
+
+```bash
+node scripts/check --runtime=node --mode=publish
+```
+
+## Artifacts
+
+- The publish dry run MUST execute `npm pack`.
+- The publish dry run MUST execute `npx jsr publish --dry-run`.
