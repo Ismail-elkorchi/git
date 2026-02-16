@@ -59,6 +59,17 @@ import {
 	type StashEntry,
 } from "./core/stash/stash.js";
 import { normalizeStatus, type RepoStatus } from "./core/status/status.js";
+import {
+	normalizeSubmodules,
+	type SubmoduleEntry,
+	upsertSubmodule,
+} from "./core/submodule/submodule.js";
+import {
+	type LinkedWorktreeEntry,
+	normalizeWorktrees,
+	pruneWorktrees,
+	upsertWorktree,
+} from "./core/worktree/worktree.js";
 import type { CompressionPort } from "./ports/compression.js";
 import type { CredentialPort } from "./ports/credential.js";
 import type { HookPort, HookResult } from "./ports/hook.js";
@@ -327,6 +338,14 @@ export class Repo {
 		return joinFsPath(this.gitDirPath, "remotes-codex.json");
 	}
 
+	private submoduleStatePath(): string {
+		return joinFsPath(this.gitDirPath, "submodules-codex.json");
+	}
+
+	private worktreeStatePath(): string {
+		return joinFsPath(this.gitDirPath, "worktrees-codex.json");
+	}
+
 	private async readRebaseState(
 		fs: NodeFsPromises,
 	): Promise<RebaseState | null> {
@@ -427,6 +446,88 @@ export class Repo {
 	): Promise<void> {
 		await fs.writeFile(
 			this.remoteConfigPath(),
+			JSON.stringify(entries, null, 2),
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
+	private async readSubmoduleEntries(
+		fs: NodeFsPromises,
+	): Promise<SubmoduleEntry[]> {
+		const statePath = this.submoduleStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return [];
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text);
+		if (!Array.isArray(parsed)) return [];
+		const out: SubmoduleEntry[] = [];
+		for (const item of parsed) {
+			if (!item || typeof item !== "object") continue;
+			if (typeof item.path !== "string") continue;
+			if (typeof item.url !== "string") continue;
+			if (typeof item.gitlinkOid !== "string") continue;
+			out.push({
+				path: item.path,
+				url: item.url,
+				gitlinkOid: item.gitlinkOid,
+			});
+		}
+		return normalizeSubmodules(out);
+	}
+
+	private async writeSubmoduleEntries(
+		fs: NodeFsPromises,
+		entries: SubmoduleEntry[],
+	): Promise<void> {
+		await fs.writeFile(
+			this.submoduleStatePath(),
+			JSON.stringify(entries, null, 2),
+			{
+				encoding: "utf8",
+			},
+		);
+	}
+
+	private async readWorktreeEntries(
+		fs: NodeFsPromises,
+	): Promise<LinkedWorktreeEntry[]> {
+		const statePath = this.worktreeStatePath();
+		const exists = await pathExists(fs, statePath);
+		if (!exists) return [];
+		const text = String(
+			await fs.readFile(statePath, {
+				encoding: "utf8",
+			}),
+		);
+		const parsed = JSON.parse(text);
+		if (!Array.isArray(parsed)) return [];
+		const out: LinkedWorktreeEntry[] = [];
+		for (const item of parsed) {
+			if (!item || typeof item !== "object") continue;
+			if (typeof item.path !== "string") continue;
+			if (typeof item.branch !== "string") continue;
+			if (typeof item.prunable !== "boolean") continue;
+			out.push({
+				path: item.path,
+				branch: item.branch,
+				prunable: item.prunable,
+			});
+		}
+		return normalizeWorktrees(out);
+	}
+
+	private async writeWorktreeEntries(
+		fs: NodeFsPromises,
+		entries: LinkedWorktreeEntry[],
+	): Promise<void> {
+		await fs.writeFile(
+			this.worktreeStatePath(),
 			JSON.stringify(entries, null, 2),
 			{
 				encoding: "utf8",
@@ -741,6 +842,57 @@ export class Repo {
 	public async listRemotes(): Promise<RemoteConfigEntry[]> {
 		const fs = await loadNodeFs();
 		return this.readRemoteEntries(fs);
+	}
+
+	public async addSubmodule(
+		path: string,
+		url: string,
+		gitlinkOid: string,
+	): Promise<void> {
+		const fs = await loadNodeFs();
+		const current = await this.readSubmoduleEntries(fs);
+		const next = upsertSubmodule(current, {
+			path,
+			url,
+			gitlinkOid,
+		});
+		await this.writeSubmoduleEntries(fs, next);
+	}
+
+	public async listSubmodules(): Promise<SubmoduleEntry[]> {
+		const fs = await loadNodeFs();
+		return this.readSubmoduleEntries(fs);
+	}
+
+	public async addWorktree(path: string, branch: string): Promise<void> {
+		const fs = await loadNodeFs();
+		const current = await this.readWorktreeEntries(fs);
+		const next = upsertWorktree(current, {
+			path,
+			branch,
+			prunable: false,
+		});
+		await this.writeWorktreeEntries(fs, next);
+	}
+
+	public async markWorktreePrunable(path: string): Promise<void> {
+		const fs = await loadNodeFs();
+		const current = await this.readWorktreeEntries(fs);
+		const next = current.map((entry) =>
+			entry.path === path ? { ...entry, prunable: true } : entry,
+		);
+		await this.writeWorktreeEntries(fs, normalizeWorktrees(next));
+	}
+
+	public async listWorktrees(): Promise<LinkedWorktreeEntry[]> {
+		const fs = await loadNodeFs();
+		return this.readWorktreeEntries(fs);
+	}
+
+	public async pruneWorktrees(): Promise<void> {
+		const fs = await loadNodeFs();
+		const current = await this.readWorktreeEntries(fs);
+		await this.writeWorktreeEntries(fs, pruneWorktrees(current));
 	}
 
 	public revisionWalk(commits: CommitNode[], mode: WalkMode): CommitNode[] {

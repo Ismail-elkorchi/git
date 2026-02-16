@@ -908,6 +908,30 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\.\.\/escape\.txt/, "apply-escape-counterexample");
   });
 
+  handlers.set("INV-FEAT-0041", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    requireTreeMatch("src", /\baddSubmodule\b/, "repo-add-submodule-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0041\b/, "inv-feat-0041-tests-token");
+    requireTreeMatch("tests", /\bgitlinkOid\b/, "submodule-gitlink-token");
+  });
+
+  handlers.set("INV-FEAT-0042", () => {
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src", /\baddWorktree\b/, "repo-add-worktree-method");
+    requireTreeMatch("src", /\bpruneWorktrees\b/, "repo-prune-worktrees-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0042\b/, "inv-feat-0042-tests-token");
+    requireTreeMatch("tests", /\bprune\b/, "worktree-prune-token");
+  });
+
+  handlers.set("INV-SECU-0015", () => {
+    existsFile("src/core/submodule/submodule.ts");
+    existsFile("src/core/worktree/worktree.ts");
+    requireTreeMatch("src/core/submodule", /\bassertSafeWorktreePath\b/, "submodule-path-safety-token");
+    requireTreeMatch("src/core/worktree", /\bassertSafeWorktreePath\b/, "worktree-path-safety-token");
+    requireTreeMatch("tests", /\bINV-SECU-0015\b/, "inv-secu-0015-tests-token");
+    requireTreeMatch("tests", /\.\.\/escape/, "submodule-worktree-escape-counterexample");
+  });
+
   return handlers;
 }
 
