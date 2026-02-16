@@ -1,3 +1,3 @@
-export function createDenoPorts() {
+export function createDenoPorts(): Record<string, never> {
 	return {};
 }

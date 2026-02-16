@@ -404,7 +404,7 @@ function invariantHandlers(repoRoot) {
   handlers.set("INV-QUAL-0027", () => {
     existsFile("scripts/publish_dry_run");
     const t = readText(repo("scripts/publish_dry_run"));
-    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"])')) {
+    if (!t.includes('run("npx", ["jsr", "publish", "--dry-run"')) {
       fail("publish_dry_run MUST run npx jsr publish --dry-run.");
     }
   });
@@ -412,7 +412,7 @@ function invariantHandlers(repoRoot) {
   handlers.set("INV-QUAL-0028", () => {
     existsFile("scripts/publish_dry_run");
     const t = readText(repo("scripts/publish_dry_run"));
-    if (!t.includes('run("npm", ["pack"])')) fail("publish_dry_run MUST run npm pack.");
+    if (!t.includes('run("npm", ["pack"')) fail("publish_dry_run MUST run npm pack.");
   });
 
   handlers.set("INV-QUAL-0029", () => {

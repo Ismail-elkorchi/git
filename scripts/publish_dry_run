@@ -35,7 +35,7 @@ function main() {
 
   fs.mkdirSync(artifactsDir, { recursive: true });
   run("npm", ["pack", "--pack-destination", "artifacts"]);
-  run("npx", ["jsr", "publish", "--dry-run"]);
+  run("npx", ["jsr", "publish", "--dry-run", "--config", "jsr.json"]);
 
   process.stdout.write("OK publish_dry_run\n");
 }
