@@ -98,6 +98,31 @@ function requireRepoEvidence(repoRoot) {
   }
 }
 
+function requireBackfillEvidence(repoRoot) {
+  const indexText = readText(path.join(repoRoot, "src", "index.ts"));
+  if (!indexText.includes("public async backfill(")) {
+    fail("backfill parity implemented state requires Repo.backfill API.");
+  }
+
+  const testPath = path.join(repoRoot, "tests", "node", "backfill.test.mjs");
+  if (!fs.existsSync(testPath)) {
+    fail("backfill parity implemented state requires tests/node/backfill.test.mjs.");
+  }
+  const testText = readText(testPath);
+  if (!testText.includes(".backfill(")) {
+    fail("backfill parity implemented state requires backfill invocation in tests.");
+  }
+  if (!/\["backfill"/.test(testText)) {
+    fail("backfill parity implemented state requires git backfill baseline checks.");
+  }
+  if (!/--min-batch-size/.test(testText)) {
+    fail("backfill parity implemented state requires min-batch-size baseline checks.");
+  }
+  if (!/--sparse/.test(testText)) {
+    fail("backfill parity implemented state requires sparse baseline checks.");
+  }
+}
+
 function requireLastModifiedEvidence(repoRoot) {
   const indexText = readText(path.join(repoRoot, "src", "index.ts"));
   if (!indexText.includes("public async lastModified(")) {
@@ -224,6 +249,9 @@ function main() {
   const implementedFamilies = readImplementedFamiliesById(roadmap.families);
   if (implementedFamilies.has("repo")) {
     requireRepoEvidence(repoRoot);
+  }
+  if (implementedFamilies.has("backfill")) {
+    requireBackfillEvidence(repoRoot);
   }
   if (implementedFamilies.has("replay")) {
     requireReplayEvidence(repoRoot);

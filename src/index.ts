@@ -5,6 +5,11 @@ import {
 	type GitAttributeValue,
 } from "./core/attributes/attributes.js";
 import {
+	type BackfillOptions,
+	type BackfillResult,
+	normalizeBackfillOptions,
+} from "./core/backfill/backfill.js";
+import {
 	assertBitmapBytes,
 	normalizePackBaseName,
 } from "./core/bitmap/file.js";
@@ -927,6 +932,23 @@ export class Repo {
 		};
 	}
 
+	private async writeLooseBlobAtOid(
+		fs: NodeFsPromises,
+		oid: string,
+		payload: Uint8Array,
+	): Promise<void> {
+		const encoded = encodeLooseObject("blob", payload);
+		const compressed = await this.compression.deflateRaw(encoded);
+		const { dir, file } = objectPathParts(oid);
+		const objectDir = joinFsPath(this.gitDirPath, "objects", dir);
+		const objectPath = joinFsPath(objectDir, file);
+		await fs.mkdir(objectDir, { recursive: true });
+		const exists = await pathExists(fs, objectPath);
+		if (!exists) {
+			await fs.writeFile(objectPath, compressed);
+		}
+	}
+
 	public async readIndex(): Promise<GitIndexV2> {
 		const fs = await loadNodeFs();
 		return this.readIndexV2(fs);
@@ -1296,7 +1318,7 @@ export class Repo {
 		}
 		const fs = await loadNodeFs();
 		const state = await this.readPartialCloneState(fs);
-		state.promisorObjects[oid] = [...toBytes(payload)];
+		state.promisorObjects[oid.toLowerCase()] = [...toBytes(payload)];
 		await this.writePartialCloneState(fs, state);
 	}
 
@@ -1304,25 +1326,119 @@ export class Repo {
 		if (!isObjectId(oid)) {
 			throw new GitError("invalid object id", "INVALID_ARGUMENT", { oid });
 		}
+		const normalizedOid = oid.toLowerCase();
 		const fs = await loadNodeFs();
 		const state = await this.readPartialCloneState(fs);
-		const promised = state.promisorObjects[oid];
+		const promised = state.promisorObjects[normalizedOid];
 		if (!promised) {
-			throw new GitError("promised object missing", "INTEGRITY_ERROR", { oid });
+			const hydrated = await this.readObject(normalizedOid).catch(() => null);
+			if (hydrated !== null) return hydrated;
+			throw new GitError("promised object missing", "INTEGRITY_ERROR", {
+				oid: normalizedOid,
+			});
 		}
 		if (!Array.isArray(promised) || promised.length === 0) {
 			throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
-				oid,
+				oid: normalizedOid,
 			});
 		}
 		for (const item of promised) {
 			if (!Number.isInteger(item) || item < 0 || item > 255) {
 				throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
-					oid,
+					oid: normalizedOid,
 				});
 			}
 		}
 		return Uint8Array.from(promised);
+	}
+
+	public async backfill(
+		options: BackfillOptions = {},
+	): Promise<BackfillResult> {
+		const normalized = normalizeBackfillOptions(options);
+		if (!normalized.ok) {
+			throw new GitError("backfill options invalid", "INVALID_ARGUMENT", {
+				reason: normalized.reason,
+			});
+		}
+		const fs = await loadNodeFs();
+		const state = await this.readPartialCloneState(fs);
+		const promisedByOid = new Map<string, number[]>();
+		for (const [rawOid, payload] of Object.entries(state.promisorObjects)) {
+			const oid = rawOid.toLowerCase();
+			if (!isObjectId(oid)) continue;
+			promisedByOid.set(oid, [...payload]);
+		}
+
+		let requestedOids = [...promisedByOid.keys()].sort((a, b) =>
+			a.localeCompare(b),
+		);
+		if (normalized.sparse) {
+			const sparseState = await this.readSparseCheckoutState(fs);
+			if (sparseState !== null) {
+				const index = await this.readIndexV2(fs);
+				const selectedPaths = new Set(
+					selectSparsePaths(
+						index.entries.map((entry) => entry.path),
+						sparseState.mode,
+						sparseState.rules,
+					),
+				);
+				const sparseOids = new Set(
+					index.entries
+						.filter((entry) => selectedPaths.has(entry.path))
+						.map((entry) => entry.oid.toLowerCase()),
+				);
+				requestedOids = requestedOids.filter((oid) => sparseOids.has(oid));
+			}
+		}
+
+		if (requestedOids.length < normalized.minBatchSize) {
+			return {
+				status: "skipped-min-batch-size",
+				minBatchSize: normalized.minBatchSize,
+				sparse: normalized.sparse,
+				requestedOids,
+				fetchedOids: [],
+				remainingPromisorOids: [...promisedByOid.keys()].sort((a, b) =>
+					a.localeCompare(b),
+				),
+			};
+		}
+
+		const fetchedOids: string[] = [];
+		for (const oid of requestedOids) {
+			const payload = promisedByOid.get(oid);
+			if (!payload || payload.length === 0) {
+				throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
+					oid,
+				});
+			}
+			for (const item of payload) {
+				if (!Number.isInteger(item) || item < 0 || item > 255) {
+					throw new GitError("promised object malformed", "INTEGRITY_ERROR", {
+						oid,
+					});
+				}
+			}
+			await this.writeLooseBlobAtOid(fs, oid, Uint8Array.from(payload));
+			delete state.promisorObjects[oid];
+			fetchedOids.push(oid);
+		}
+
+		await this.writePartialCloneState(fs, state);
+		const remainingPromisorOids = Object.keys(state.promisorObjects)
+			.map((oid) => oid.toLowerCase())
+			.filter((oid) => isObjectId(oid))
+			.sort((a, b) => a.localeCompare(b));
+		return {
+			status: "completed",
+			minBatchSize: normalized.minBatchSize,
+			sparse: normalized.sparse,
+			requestedOids,
+			fetchedOids,
+			remainingPromisorOids,
+		};
 	}
 
 	public async runMaintenance(

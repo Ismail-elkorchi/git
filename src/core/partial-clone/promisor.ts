@@ -10,6 +10,10 @@ export const defaultPartialCloneState: PartialCloneState = {
 	promisorObjects: {},
 };
 
+function isObjectId(value: string): boolean {
+	return /^[0-9a-f]{40}$|^[0-9a-f]{64}$/.test(value);
+}
+
 function normalizeCapability(capability: string): string {
 	return capability.trim();
 }
@@ -81,10 +85,14 @@ export function normalizePartialCloneState(
 	}
 	const promisorObjects: Record<string, number[]> = {};
 	for (const [oid, payload] of Object.entries(rawPromisor)) {
+		const normalizedOid = oid.toLowerCase();
+		if (!isObjectId(normalizedOid)) {
+			return null;
+		}
 		if (!isValidPromisedPayload(payload)) {
 			return null;
 		}
-		promisorObjects[oid] = [...payload];
+		promisorObjects[normalizedOid] = [...payload];
 	}
 	return {
 		filterSpec,
