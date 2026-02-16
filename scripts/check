@@ -835,6 +835,51 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\bstashDrop\b/, "stash-drop-token");
   });
 
+  handlers.set("INV-FEAT-0034", () => {
+    existsFile("src/core/refs/refs.ts");
+    requireTreeMatch("src", /\bcreateBranch\b/, "repo-create-branch-method");
+    requireTreeMatch("src", /\bcreateTag\b/, "repo-create-tag-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0034\b/, "inv-feat-0034-tests-token");
+    requireTreeMatch("tests", /\bshow-ref\b/, "branch-tag-show-ref-baseline");
+  });
+
+  handlers.set("INV-FEAT-0035", () => {
+    existsFile("src/core/remote/remote-config.ts");
+    requireTreeMatch("src", /\bsetRemote\b/, "repo-set-remote-method");
+    requireTreeMatch("src", /\blistRemotes\b/, "repo-list-remotes-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0035\b/, "inv-feat-0035-tests-token");
+    requireTreeMatch("tests", /\bfetchRefspec\b/, "remote-fetch-refspec-token");
+    requireTreeMatch("tests", /\bpushRefspec\b/, "remote-push-refspec-token");
+  });
+
+  handlers.set("INV-FEAT-0036", () => {
+    existsFile("src/core/revision-walk/walk.ts");
+    requireTreeMatch("src", /\brevisionWalk\b/, "repo-revision-walk-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0036\b/, "inv-feat-0036-tests-token");
+    requireTreeMatch("tests", /\btopo\b/, "revision-walk-topo-token");
+    requireTreeMatch("tests", /\breverse\b/, "revision-walk-reverse-token");
+  });
+
+  handlers.set("INV-FEAT-0037", () => {
+    existsFile("src/core/log/log.ts");
+    requireTreeMatch("src", /\blog\(/, "repo-log-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0037\b/, "inv-feat-0037-tests-token");
+    requireTreeMatch("tests", /\boid\b/, "log-oid-token");
+    requireTreeMatch("tests", /\bparent\b/, "log-parent-token");
+    requireTreeMatch("tests", /\bauthor\b/, "log-author-token");
+    requireTreeMatch("tests", /\bcommitter\b/, "log-committer-token");
+  });
+
+  handlers.set("INV-QUAL-0039", () => {
+    existsFile("docs/api.md");
+    requireTreeMatch("docs", /\bcreateBranch\b/, "api-contract-create-branch");
+    requireTreeMatch("docs", /\bcreateTag\b/, "api-contract-create-tag");
+    requireTreeMatch("docs", /\bsetRemote\b/, "api-contract-set-remote");
+    requireTreeMatch("docs", /\blistRemotes\b/, "api-contract-list-remotes");
+    requireTreeMatch("docs", /\brevisionWalk\b/, "api-contract-revision-walk");
+    requireTreeMatch("docs", /\blog\b/, "api-contract-log");
+  });
+
   return handlers;
 }
 
