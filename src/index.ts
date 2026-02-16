@@ -25,6 +25,14 @@ import {
 	encodeIndexV2,
 	type GitIndexV2,
 } from "./core/index/index-v2.js";
+import {
+	createLastModifiedResult,
+	type LastModifiedCommitMetadata,
+	type LastModifiedResult,
+	normalizeLastModifiedRef,
+	parseLastModifiedCommitMetadata,
+	parseLastModifiedTreeEntries,
+} from "./core/last-modified/last-modified.js";
 import { buildLogMetadata, type LogMetadata } from "./core/log/log.js";
 import {
 	maintenanceStages,
@@ -1459,6 +1467,162 @@ export class Repo {
 		return replace[oid.toLowerCase()] ?? oid.toLowerCase();
 	}
 
+	private async resolveLastModifiedRefOid(refValue: string): Promise<string> {
+		if (refValue === "HEAD") {
+			return this.resolveHead();
+		}
+		if (isObjectId(refValue)) return refValue.toLowerCase();
+
+		const candidates = [
+			refValue,
+			`refs/${refValue}`,
+			`refs/heads/${refValue}`,
+			`refs/tags/${refValue}`,
+		];
+		for (const candidate of candidates) {
+			const oid = await this.resolveRef(candidate);
+			if (oid !== null) return oid.toLowerCase();
+		}
+
+		throw new GitError("last-modified ref invalid", "INVALID_ARGUMENT", {
+			refValue,
+		});
+	}
+
+	private async readLastModifiedCommitMetadata(
+		commitOid: string,
+	): Promise<LastModifiedCommitMetadata> {
+		if (!isObjectId(commitOid)) {
+			throw new GitError(
+				"last-modified commit oid invalid",
+				"INVALID_ARGUMENT",
+				{
+					commitOid,
+				},
+			);
+		}
+		const commitPayload = await this.readObject(commitOid);
+		const metadata = parseLastModifiedCommitMetadata(commitPayload);
+		if (metadata === null || !isObjectId(metadata.treeOid)) {
+			throw new GitError(
+				"last-modified commit metadata invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					commitOid,
+				},
+			);
+		}
+		for (const parentOid of metadata.parentOids) {
+			if (!isObjectId(parentOid)) {
+				throw new GitError(
+					"last-modified parent oid invalid",
+					"OBJECT_FORMAT_ERROR",
+					{
+						commitOid,
+						parentOid,
+					},
+				);
+			}
+		}
+		return metadata;
+	}
+
+	private async readLastModifiedPathOid(
+		treeOid: string,
+		pathValue: string,
+	): Promise<string | null> {
+		if (!isObjectId(treeOid)) {
+			throw new GitError("last-modified tree oid invalid", "INVALID_ARGUMENT", {
+				treeOid,
+			});
+		}
+		const segments = pathValue.split("/");
+		let currentTreeOid = treeOid;
+		for (let index = 0; index < segments.length; index += 1) {
+			const segment = segments[index];
+			if (!segment) {
+				throw new GitError(
+					"last-modified path segment invalid",
+					"INVALID_ARGUMENT",
+					{
+						pathValue,
+					},
+				);
+			}
+
+			const treePayload = await this.readObject(currentTreeOid);
+			const oidByteLength = this.hashAlgorithm === "sha1" ? 20 : 32;
+			const entries = parseLastModifiedTreeEntries(treePayload, oidByteLength);
+			const entry = entries.find((item) => item.name === segment) ?? null;
+			if (entry === null) return null;
+			if (!isObjectId(entry.oid)) {
+				throw new GitError(
+					"last-modified tree entry oid invalid",
+					"OBJECT_FORMAT_ERROR",
+					{
+						pathValue,
+						treeOid: currentTreeOid,
+						segment,
+					},
+				);
+			}
+
+			const isLast = index === segments.length - 1;
+			if (isLast) {
+				if (entry.mode === 0o40000) return null;
+				return entry.oid;
+			}
+			if (entry.mode !== 0o40000) return null;
+			currentTreeOid = entry.oid;
+		}
+
+		return null;
+	}
+
+	private async resolveLastModifiedHistoryOid(
+		startCommitOid: string,
+		pathValue: string,
+	): Promise<string | null> {
+		let currentCommitOid: string | null = startCommitOid;
+		const seen = new Set<string>();
+
+		while (currentCommitOid !== null) {
+			if (seen.has(currentCommitOid)) break;
+			seen.add(currentCommitOid);
+
+			const commit =
+				await this.readLastModifiedCommitMetadata(currentCommitOid);
+			const currentPathOid = await this.readLastModifiedPathOid(
+				commit.treeOid,
+				pathValue,
+			);
+			if (commit.parentOids.length === 0) {
+				return currentPathOid === null ? null : currentCommitOid;
+			}
+
+			let changedFromParent = false;
+			for (const parentOid of commit.parentOids) {
+				const parentCommit =
+					await this.readLastModifiedCommitMetadata(parentOid);
+				const parentPathOid = await this.readLastModifiedPathOid(
+					parentCommit.treeOid,
+					pathValue,
+				);
+				if (parentPathOid !== currentPathOid) {
+					changedFromParent = true;
+					break;
+				}
+			}
+
+			if (changedFromParent) {
+				return currentPathOid === null ? null : currentCommitOid;
+			}
+			currentCommitOid = commit.parentOids[0] ?? null;
+		}
+
+		return null;
+	}
+
 	public negotiateTransportCapabilities(
 		httpCapabilities: string[],
 		sshCapabilities: string[],
@@ -1532,6 +1696,36 @@ export class Repo {
 			appliedPaths.push(applyResult.appliedPath);
 		}
 		return replayCompleted(appliedPaths);
+	}
+
+	public async lastModified(
+		pathValue: string,
+		options: { ref?: string } = {},
+	): Promise<LastModifiedResult> {
+		assertSafeWorktreePath(pathValue);
+		const normalizedRef = normalizeLastModifiedRef(options.ref);
+		const fs = await loadNodeFs();
+		const index = await this.readIndexV2(fs);
+		const indexEntry = index.entries.find((entry) => entry.path === pathValue);
+		const indexOidRaw = indexEntry?.oid ?? null;
+		const indexOid = indexOidRaw === null ? null : indexOidRaw.toLowerCase();
+		if (indexOid !== null && !isObjectId(indexOid)) {
+			throw new GitError(
+				"last-modified index oid invalid",
+				"OBJECT_FORMAT_ERROR",
+				{
+					pathValue,
+					indexOid: indexOidRaw,
+				},
+			);
+		}
+
+		const refOid = await this.resolveLastModifiedRefOid(normalizedRef);
+		const historyOid = await this.resolveLastModifiedHistoryOid(
+			refOid,
+			pathValue,
+		);
+		return createLastModifiedResult(pathValue, historyOid, indexOid);
 	}
 
 	public blame(lines: string[], blame: BlameTuple[]): BlameTuple[] {
