@@ -87,6 +87,11 @@ import {
 	validateReplaySteps,
 } from "./core/replay/replay.js";
 import { buildRepoConfig, parseRepoObjectFormat } from "./core/repo/config.js";
+import {
+	emptyRepoStructureTotals,
+	parseRepoTagTargetOid,
+	repoStructureToKeyValue,
+} from "./core/repo/repo-command.js";
 import { revertCommitPayload } from "./core/revert/revert.js";
 import {
 	type CommitNode,
@@ -849,6 +854,9 @@ export class Repo {
 				if (isObjectId(oid)) objectIds.push(oid);
 			}
 		}
+		for (const oid of (await this.readLooseRefsMap()).values()) {
+			if (isObjectId(oid)) objectIds.push(oid);
+		}
 
 		return normalizeObjectIds(objectIds);
 	}
@@ -898,6 +906,25 @@ export class Repo {
 		const inflated = await this.compression.inflateRaw(objectBytes);
 		const decoded = decodeLooseObject(inflated);
 		return decoded.payload;
+	}
+
+	private async readLooseObjectEnvelope(oid: string): Promise<{
+		objectType: GitObjectType;
+		payload: Uint8Array;
+		diskSize: number;
+	} | null> {
+		const fs = await loadNodeFs();
+		const { dir, file } = objectPathParts(oid);
+		const objectPath = joinFsPath(this.gitDirPath, "objects", dir, file);
+		const objectBytes = await fs.readFile(objectPath).catch(() => null);
+		if (!(objectBytes instanceof Uint8Array)) return null;
+		const inflated = await this.compression.inflateRaw(objectBytes);
+		const decoded = decodeLooseObject(inflated);
+		return {
+			objectType: decoded.objectType,
+			payload: decoded.payload,
+			diskSize: objectBytes.byteLength,
+		};
 	}
 
 	public async readIndex(): Promise<GitIndexV2> {
@@ -1465,6 +1492,127 @@ export class Repo {
 		const fs = await loadNodeFs();
 		const replace = await this.readReplaceState(fs);
 		return replace[oid.toLowerCase()] ?? oid.toLowerCase();
+	}
+
+	public async repoInfo(
+		options: { all?: boolean; keys?: string[] } = {},
+	): Promise<Record<string, string>> {
+		const fs = await loadNodeFs();
+		const shallowPath = joinFsPath(this.gitDirPath, "shallow");
+		const info = {
+			"layout.bare": this.worktreePath === null ? "true" : "false",
+			"layout.shallow": (await pathExists(fs, shallowPath)) ? "true" : "false",
+			"object.format": this.hashAlgorithm,
+			"references.format": "files",
+		} as const;
+
+		const requestedKeys =
+			options.all === true ? Object.keys(info) : (options.keys ?? []);
+		if (requestedKeys.length === 0) return {};
+
+		const out: Record<string, string> = {};
+		for (const rawKey of requestedKeys) {
+			const key = rawKey.trim();
+			if (key.length === 0) {
+				throw new GitError("repo info key invalid", "INVALID_ARGUMENT", {
+					key,
+				});
+			}
+			const value = info[key as keyof typeof info];
+			if (value === undefined) {
+				throw new GitError("repo info key invalid", "INVALID_ARGUMENT", {
+					key,
+				});
+			}
+			out[key] = value;
+		}
+
+		return out;
+	}
+
+	public async repoStructure(): Promise<Record<string, string>> {
+		const totals = emptyRepoStructureTotals();
+		const refs = await this.listRefs("refs");
+		for (const entry of refs) {
+			if (entry.refName.startsWith("refs/heads/")) {
+				totals.references.branchesCount += 1;
+				continue;
+			}
+			if (entry.refName.startsWith("refs/tags/")) {
+				totals.references.tagsCount += 1;
+				continue;
+			}
+			if (entry.refName.startsWith("refs/remotes/")) {
+				totals.references.remotesCount += 1;
+				continue;
+			}
+			totals.references.othersCount += 1;
+		}
+
+		const fs = await loadNodeFs();
+		const queue = await this.readReachableRefObjectIds(fs);
+		const seen = new Set<string>();
+		const oidByteLength = this.hashAlgorithm === "sha1" ? 20 : 32;
+
+		while (queue.length > 0) {
+			const currentOid = queue.shift();
+			if (!currentOid) continue;
+			const oid = currentOid.toLowerCase();
+			if (!isObjectId(oid)) continue;
+			if (seen.has(oid)) continue;
+			seen.add(oid);
+
+			const objectEnvelope = await this.readLooseObjectEnvelope(oid);
+			if (objectEnvelope === null) continue;
+
+			if (objectEnvelope.objectType === "commit") {
+				totals.objects.commits.count += 1;
+				totals.objects.commits.inflatedSize +=
+					objectEnvelope.payload.byteLength;
+				totals.objects.commits.diskSize += objectEnvelope.diskSize;
+				const metadata = parseLastModifiedCommitMetadata(
+					objectEnvelope.payload,
+				);
+				if (metadata !== null) {
+					if (isObjectId(metadata.treeOid)) queue.push(metadata.treeOid);
+					for (const parentOid of metadata.parentOids) {
+						if (isObjectId(parentOid)) queue.push(parentOid);
+					}
+				}
+				continue;
+			}
+
+			if (objectEnvelope.objectType === "tree") {
+				totals.objects.trees.count += 1;
+				totals.objects.trees.inflatedSize += objectEnvelope.payload.byteLength;
+				totals.objects.trees.diskSize += objectEnvelope.diskSize;
+				const entries = parseLastModifiedTreeEntries(
+					objectEnvelope.payload,
+					oidByteLength,
+				);
+				for (const treeEntry of entries) {
+					if (isObjectId(treeEntry.oid)) queue.push(treeEntry.oid);
+				}
+				continue;
+			}
+
+			if (objectEnvelope.objectType === "blob") {
+				totals.objects.blobs.count += 1;
+				totals.objects.blobs.inflatedSize += objectEnvelope.payload.byteLength;
+				totals.objects.blobs.diskSize += objectEnvelope.diskSize;
+				continue;
+			}
+
+			totals.objects.tags.count += 1;
+			totals.objects.tags.inflatedSize += objectEnvelope.payload.byteLength;
+			totals.objects.tags.diskSize += objectEnvelope.diskSize;
+			const targetOid = parseRepoTagTargetOid(objectEnvelope.payload);
+			if (targetOid !== null && isObjectId(targetOid)) {
+				queue.push(targetOid);
+			}
+		}
+
+		return repoStructureToKeyValue(totals);
 	}
 
 	private async resolveLastModifiedRefOid(refValue: string): Promise<string> {

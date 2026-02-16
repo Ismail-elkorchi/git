@@ -90,7 +90,7 @@
 			"id": "repo",
 			"section": "newer-git-command-families",
 			"matrix_label": "`repo`",
-			"state": "not-implemented"
+			"state": "implemented"
 		},
 		{
 			"id": "backfill",

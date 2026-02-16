@@ -11,6 +11,7 @@ The bun entry point MUST export createBunPorts.
 The Repo API MUST include createRef and listRefs and deleteRef and verifyRef operations.
 The Repo API MUST include createBranch and createTag operations.
 The Repo API MUST include setRemote and listRemotes operations.
+The Repo API MUST include repoInfo and repoStructure operations.
 The Repo API MUST include replay operations with deterministic conflict status reporting.
 The Repo API MUST include lastModified operation with historyOid and indexOid fields.
 The Repo API MUST include revisionWalk and log operations.

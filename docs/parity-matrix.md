@@ -39,7 +39,7 @@ The parity matrix MUST define test evidence expectations for each command family
 | Command Family | State | Evidence Expectation |
 | --- | --- | --- |
 | `refs` | implemented | MUST pass create and list and delete and verify parity tests against git refs behavior. |
-| `repo` | not-implemented | MUST define scope and fixtures before marking implemented. |
+| `repo` | implemented | MUST pass repo info and repo structure keyvalue parity tests against git repo command outputs. |
 | `backfill` | not-implemented | MUST define protocol and object model behavior before marking implemented. |
 | `replay` | implemented | MUST pass ordered replay and conflict-stop parity tests against sequential git apply behavior. |
 | `last-modified` | implemented | MUST pass history and index parity tests against git log and git ls-files outputs. |
