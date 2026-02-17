@@ -2461,8 +2461,8 @@
     {
       "id": "INV-FEAT-0053",
       "kind": "feature",
-      "statement": "Clone and receive-pack plumbing MUST preserve parity with git clone branch checkout behavior and git receive-pack advertise and guarded ref update behavior.",
-      "rationale": "Clone and receive-pack parity is required for consistent client and server ref synchronization workflows.",
+      "statement": "Clone and receive-pack plumbing MUST preserve parity with git clone branch and depth and filter and recurse-submodules behavior across local and file URL sources and with git receive-pack advertise and guarded ref update behavior.",
+      "rationale": "Clone and receive-pack parity across local and file URL workflows is required for consistent client and server ref synchronization behavior.",
       "proof_obligation": {
         "verification_method": "e2e",
         "evidence_artifact": "artifacts/gates/INV-FEAT-0053.json",

@@ -183,6 +183,18 @@ function requireCloneReceivePackEvidence(repoRoot) {
   if (!/\["clone",\s*"--quiet",\s*"--branch"/.test(testText)) {
     fail("clone-receive-pack parity implemented state requires git clone baseline checks.");
   }
+  if (!/--depth/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires clone depth baseline checks.");
+  }
+  if (!/--filter=blob:none/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires clone filter baseline checks.");
+  }
+  if (!/--recurse-submodules/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires clone recurse-submodules baseline checks.");
+  }
+  if (!/pathToFileURL/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires file remote clone baseline checks.");
+  }
   if (!/\["receive-pack",\s*"--advertise-refs"/.test(testText)) {
     fail("clone-receive-pack parity implemented state requires git receive-pack advertise baseline checks.");
   }

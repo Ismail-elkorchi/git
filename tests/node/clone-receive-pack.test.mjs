@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 function runGit(args, cwd, encoding = "utf8") {
 	const res = spawnSync("git", args, {
@@ -15,6 +16,7 @@ function runGit(args, cwd, encoding = "utf8") {
 			GIT_AUTHOR_EMAIL: "clone@example.local",
 			GIT_COMMITTER_NAME: "Clone Bot",
 			GIT_COMMITTER_EMAIL: "clone@example.local",
+			GIT_ALLOW_PROTOCOL: "file",
 		},
 	});
 	return {
@@ -111,6 +113,126 @@ test("clone local branch selection keeps parity with git clone INV-FEAT-0053", a
 	assert.equal(
 		await readFile(`${targetRoot}/feature.txt`, "utf8"),
 		await readFile(`${baselineRoot}/feature.txt`, "utf8"),
+	);
+});
+
+test("clone file remote supports depth filter and recurse-submodules parity INV-FEAT-0053", async (context) => {
+	const { Repo } = await import("../../dist/index.js");
+	const submoduleSourceRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-submodule-source-"),
+	);
+	const submoduleBareRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-submodule-bare-"),
+	);
+	const superSourceRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-super-source-"),
+	);
+	const superBareRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-super-bare-"),
+	);
+	const targetRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-remote-target-"),
+	);
+	const baselineRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-remote-baseline-"),
+	);
+	context.after(async () => {
+		await rm(submoduleSourceRoot, { recursive: true, force: true });
+		await rm(submoduleBareRoot, { recursive: true, force: true });
+		await rm(superSourceRoot, { recursive: true, force: true });
+		await rm(superBareRoot, { recursive: true, force: true });
+		await rm(targetRoot, { recursive: true, force: true });
+		await rm(baselineRoot, { recursive: true, force: true });
+	});
+
+	runGitText(["init", "--quiet"], submoduleSourceRoot);
+	await writeFile(`${submoduleSourceRoot}/sub.txt`, "submodule\n", "utf8");
+	runGitText(["add", "sub.txt"], submoduleSourceRoot);
+	runGitText(["commit", "-m", "submodule-base"], submoduleSourceRoot);
+	runGitText(
+		["clone", "--quiet", "--bare", submoduleSourceRoot, submoduleBareRoot],
+		submoduleSourceRoot,
+	);
+
+	runGitText(["init", "--quiet"], superSourceRoot);
+	await writeFile(`${superSourceRoot}/root.txt`, "base\n", "utf8");
+	runGitText(["add", "root.txt"], superSourceRoot);
+	runGitText(["commit", "-m", "base"], superSourceRoot);
+	await writeFile(`${superSourceRoot}/root.txt`, "history\n", "utf8");
+	runGitText(["add", "root.txt"], superSourceRoot);
+	runGitText(["commit", "-m", "history"], superSourceRoot);
+	runGitText(
+		[
+			"-c",
+			"protocol.file.allow=always",
+			"submodule",
+			"add",
+			"-q",
+			pathToFileURL(submoduleBareRoot).toString(),
+			"modules/lib",
+		],
+		superSourceRoot,
+	);
+	runGitText(["commit", "-am", "add-submodule"], superSourceRoot);
+
+	runGitText(
+		["clone", "--quiet", "--bare", superSourceRoot, superBareRoot],
+		superSourceRoot,
+	);
+	runGitText(["config", "uploadpack.allowFilter", "true"], superBareRoot);
+	runGitText(
+		["config", "uploadpack.allowAnySHA1InWant", "true"],
+		superBareRoot,
+	);
+
+	const remoteUrl = pathToFileURL(superBareRoot).toString();
+	const cloned = await Repo.clone(remoteUrl, targetRoot, {
+		depth: 1,
+		filter: "blob:none",
+		recurseSubmodules: true,
+	});
+	assert.equal(cloned.worktreePath, targetRoot);
+	assert.equal(runGitText(["rev-list", "--count", "HEAD"], targetRoot), "1");
+	const partialCloneState = JSON.parse(
+		await readFile(`${targetRoot}/.git/partial-clone-codex.json`, "utf8"),
+	);
+	assert.equal(partialCloneState.filterSpec, "blob:none");
+	assert.equal(
+		runGitText(["config", "--get", "remote.origin.url"], targetRoot),
+		remoteUrl,
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		"submodule\n",
+	);
+	runGitText(["fsck", "--full"], targetRoot);
+
+	runGitText(
+		[
+			"-c",
+			"protocol.file.allow=always",
+			"clone",
+			"--quiet",
+			"--depth",
+			"1",
+			"--filter=blob:none",
+			"--recurse-submodules",
+			remoteUrl,
+			baselineRoot,
+		],
+		superSourceRoot,
+	);
+	assert.equal(
+		runGitText(["rev-parse", "HEAD"], targetRoot),
+		runGitText(["rev-parse", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		runGitText(["rev-list", "--count", "HEAD"], targetRoot),
+		runGitText(["rev-list", "--count", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		await readFile(`${baselineRoot}/modules/lib/sub.txt`, "utf8"),
 	);
 });
 
