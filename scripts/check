@@ -1050,6 +1050,17 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /\bgit-receive-pack\b/, "git-receive-pack-capability-token");
   });
 
+  handlers.set("INV-FEAT-0053", () => {
+    existsFile("src/core/network/receive-pack.ts");
+    requireTreeMatch("src", /\bstatic async clone\(/, "repo-clone-method");
+    requireTreeMatch("src", /\breceivePackRequest\(/, "repo-receive-pack-request-method");
+    requireTreeMatch("src", /\breceivePackAdvertiseRefs\(/, "repo-receive-pack-advertise-method");
+    requireTreeMatch("src", /\breceivePackUpdate\(/, "repo-receive-pack-update-method");
+    requireTreeMatch("tests", /\bINV-FEAT-0053\b/, "inv-feat-0053-tests-token");
+    requireTreeMatch("tests", /\["clone",\s*"--quiet",\s*"--branch"/, "git-clone-branch-baseline-token");
+    requireTreeMatch("tests", /\["receive-pack",\s*"--advertise-refs"/, "git-receive-pack-advertise-baseline-token");
+  });
+
   return handlers;
 }
 

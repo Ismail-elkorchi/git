@@ -145,6 +145,49 @@ function requireLastModifiedEvidence(repoRoot) {
   }
 }
 
+function requireCloneReceivePackEvidence(repoRoot) {
+  const indexText = readText(path.join(repoRoot, "src", "index.ts"));
+  if (!indexText.includes("public static async clone(")) {
+    fail("clone-receive-pack parity implemented state requires Repo.clone API.");
+  }
+  if (!indexText.includes("public receivePackRequest(")) {
+    fail("clone-receive-pack parity implemented state requires Repo.receivePackRequest API.");
+  }
+  if (!indexText.includes("public async receivePackAdvertiseRefs(")) {
+    fail("clone-receive-pack parity implemented state requires Repo.receivePackAdvertiseRefs API.");
+  }
+  if (!indexText.includes("public async receivePackUpdate(")) {
+    fail("clone-receive-pack parity implemented state requires Repo.receivePackUpdate API.");
+  }
+
+  const testPath = path.join(repoRoot, "tests", "node", "clone-receive-pack.test.mjs");
+  if (!fs.existsSync(testPath)) {
+    fail("clone-receive-pack parity implemented state requires tests/node/clone-receive-pack.test.mjs.");
+  }
+  const testText = readText(testPath);
+  if (!testText.includes("INV-FEAT-0053")) {
+    fail("clone-receive-pack parity implemented state requires INV-FEAT-0053 evidence token in tests.");
+  }
+  if (!testText.includes("Repo.clone(")) {
+    fail("clone-receive-pack parity implemented state requires clone invocation in tests.");
+  }
+  if (!testText.includes(".receivePackRequest(")) {
+    fail("clone-receive-pack parity implemented state requires receivePackRequest invocation in tests.");
+  }
+  if (!testText.includes(".receivePackAdvertiseRefs(")) {
+    fail("clone-receive-pack parity implemented state requires receivePackAdvertiseRefs invocation in tests.");
+  }
+  if (!testText.includes(".receivePackUpdate(")) {
+    fail("clone-receive-pack parity implemented state requires receivePackUpdate invocation in tests.");
+  }
+  if (!/\["clone",\s*"--quiet",\s*"--branch"/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires git clone baseline checks.");
+  }
+  if (!/\["receive-pack",\s*"--advertise-refs"/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires git receive-pack advertise baseline checks.");
+  }
+}
+
 function main() {
   const repoRoot = process.cwd();
   const roadmapPath = path.join(repoRoot, "spec", "parity-roadmap.yaml");
@@ -217,7 +260,7 @@ function main() {
     roadmapByLabel.set(family.matrix_label, family.state);
   }
 
-  for (const requiredId of ["refs", "repo", "backfill", "replay", "last-modified"]) {
+  for (const requiredId of ["refs", "clone-receive-pack-plumbing", "repo", "backfill", "replay", "last-modified"]) {
     if (!familyIdSet.has(requiredId)) fail(`parity roadmap missing required family ${requiredId}.`);
   }
 
@@ -258,6 +301,9 @@ function main() {
   }
   if (implementedFamilies.has("last-modified")) {
     requireLastModifiedEvidence(repoRoot);
+  }
+  if (implementedFamilies.has("clone-receive-pack-plumbing")) {
+    requireCloneReceivePackEvidence(repoRoot);
   }
 
   process.stdout.write("OK parity_matrix_check\n");
