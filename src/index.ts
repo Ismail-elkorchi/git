@@ -47,6 +47,11 @@ import { computeMergeOutcome, type MergeOutcome } from "./core/merge/merge.js";
 import { assertMultiPackIndexBytes } from "./core/multi-pack-index/file.js";
 import { parseSmartHttpDiscoveryUrl } from "./core/network/discovery.js";
 import {
+	buildReceivePackAdvertisement,
+	buildReceivePackRequest,
+	type ReceivePackRefUpdate,
+} from "./core/network/receive-pack.js";
+import {
 	buildReceivePackLine,
 	buildUploadPackLine,
 	redactSecret,
@@ -249,8 +254,38 @@ async function pathExists(
 	return st !== null;
 }
 
+async function copyTree(
+	fs: NodeFsPromises,
+	sourcePath: string,
+	targetPath: string,
+	excludedNames: Set<string> = new Set(),
+): Promise<void> {
+	await fs.mkdir(targetPath, { recursive: true });
+	const entries = await fs.readdir(sourcePath, { withFileTypes: true });
+	for (const entry of entries) {
+		if (excludedNames.has(entry.name)) continue;
+		const nextSourcePath = joinFsPath(sourcePath, entry.name);
+		const nextTargetPath = joinFsPath(targetPath, entry.name);
+		if (entry.isDirectory()) {
+			await copyTree(fs, nextSourcePath, nextTargetPath);
+			continue;
+		}
+		if (!entry.isFile()) continue;
+		const payload = await fs.readFile(nextSourcePath);
+		await fs.mkdir(parentFsPath(nextTargetPath), { recursive: true });
+		await fs.writeFile(nextTargetPath, payload);
+	}
+}
+
 interface RepoInitOptions {
 	hashAlgorithm?: GitHashAlgorithm;
+}
+
+interface RepoCloneOptions {
+	branch?: string;
+	depth?: number;
+	filter?: string;
+	recurseSubmodules?: boolean;
 }
 
 type ProgressCallback = (value: {
@@ -363,6 +398,133 @@ export class Repo {
 		const hashAlgorithm = parseRepoObjectFormat(configText);
 		const worktreePath = gitDirExists ? normalizedPath : null;
 		return new Repo(gitDirPath, worktreePath, hashAlgorithm);
+	}
+
+	public static async clone(
+		sourcePath: string,
+		targetPath: string,
+		options: RepoCloneOptions = {},
+	): Promise<Repo> {
+		if (typeof options.depth === "number") {
+			throw new GitError("clone depth unsupported", "UNSUPPORTED", {
+				depth: options.depth,
+			});
+		}
+		if (
+			typeof options.filter === "string" &&
+			options.filter.trim().length > 0
+		) {
+			throw new GitError("clone filter unsupported", "UNSUPPORTED", {
+				filter: options.filter,
+			});
+		}
+		if (options.recurseSubmodules === true) {
+			throw new GitError(
+				"clone recurse-submodules unsupported",
+				"UNSUPPORTED",
+				{
+					recurseSubmodules: true,
+				},
+			);
+		}
+
+		const normalizedBranch =
+			typeof options.branch === "string" ? options.branch.trim() : "";
+		if (typeof options.branch === "string" && normalizedBranch.length === 0) {
+			throw new GitError("clone branch invalid", "INVALID_ARGUMENT", {
+				branch: options.branch,
+			});
+		}
+
+		const fs = await loadNodeFs();
+		const sourceRepo = await Repo.open(sourcePath);
+		if (sourceRepo.worktreePath === null) {
+			throw new GitError("clone source worktree unsupported", "UNSUPPORTED", {
+				sourcePath,
+			});
+		}
+
+		const normalizedTargetPath = stripTrailingSlash(targetPath);
+		const targetExists = await pathExists(fs, normalizedTargetPath);
+		if (targetExists) {
+			const targetStat = await fs.stat(normalizedTargetPath);
+			if (!targetStat.isDirectory()) {
+				throw new GitError("clone target invalid", "ALREADY_EXISTS", {
+					targetPath: normalizedTargetPath,
+				});
+			}
+			const entries = await fs.readdir(normalizedTargetPath, {
+				withFileTypes: true,
+			});
+			if (entries.length > 0) {
+				throw new GitError("clone target not empty", "ALREADY_EXISTS", {
+					targetPath: normalizedTargetPath,
+				});
+			}
+		}
+
+		const initialized = await Repo.init(normalizedTargetPath, {
+			hashAlgorithm: sourceRepo.hashAlgorithm,
+		});
+		await copyTree(fs, sourceRepo.gitDirPath, initialized.gitDirPath);
+
+		const cloned = await Repo.open(normalizedTargetPath);
+		if (normalizedBranch.length > 0) {
+			const branchRefName = normalizeRefName(`heads/${normalizedBranch}`);
+			const branchOid = await cloned.resolveRef(branchRefName);
+			if (branchOid === null) {
+				throw new GitError("clone branch missing", "NOT_FOUND", {
+					branchRefName,
+				});
+			}
+			await fs.writeFile(
+				joinFsPath(cloned.gitDirPath, "HEAD"),
+				`ref: ${branchRefName}\n`,
+				{
+					encoding: "utf8",
+				},
+			);
+		}
+
+		const targetHeadOid = await cloned.resolveHead();
+		const commitPayload = await cloned.readObject(targetHeadOid);
+		const commitMetadata = parseLastModifiedCommitMetadata(commitPayload);
+		if (!commitMetadata) {
+			throw new GitError("clone head commit malformed", "OBJECT_FORMAT_ERROR", {
+				targetHeadOid,
+			});
+		}
+		const oidByteLength = cloned.hashAlgorithm === "sha256" ? 32 : 20;
+		const materializedFiles: Record<string, Uint8Array> = {};
+
+		const materializeTree = async (
+			treeOid: string,
+			pathPrefix = "",
+		): Promise<void> => {
+			const treePayload = await cloned.readObject(treeOid);
+			const treeEntries = parseLastModifiedTreeEntries(
+				treePayload,
+				oidByteLength,
+			);
+			for (const treeEntry of treeEntries) {
+				const relativePath =
+					pathPrefix.length > 0
+						? `${pathPrefix}/${treeEntry.name}`
+						: treeEntry.name;
+				const entryKind = treeEntry.mode & 0o170000;
+				if (entryKind === 0o040000) {
+					await materializeTree(treeEntry.oid, relativePath);
+					continue;
+				}
+				const blobPayload = await cloned.readObject(treeEntry.oid);
+				materializedFiles[relativePath] = blobPayload;
+			}
+		};
+
+		await materializeTree(commitMetadata.treeOid);
+		await cloned.checkout(materializedFiles);
+
+		return cloned;
 	}
 
 	private requireWorktreePath(): string {
@@ -2049,6 +2211,116 @@ export class Repo {
 			});
 		}
 		return responseBody;
+	}
+
+	public receivePackRequest(
+		update: ReceivePackRefUpdate,
+		capabilities: string[] = [],
+	): Uint8Array {
+		if (!isObjectId(update.oldOid) || !isObjectId(update.newOid)) {
+			throw new GitError("receive-pack oid invalid", "INVALID_ARGUMENT", {
+				update,
+			});
+		}
+		if (update.oldOid.length !== update.newOid.length) {
+			throw new GitError(
+				"receive-pack oid length mismatch",
+				"INVALID_ARGUMENT",
+				{
+					update,
+				},
+			);
+		}
+		if (update.refName.trim().length === 0) {
+			throw new GitError("receive-pack ref invalid", "INVALID_ARGUMENT", {
+				update,
+			});
+		}
+		const normalizedUpdate = {
+			refName: normalizeRefName(update.refName),
+			oldOid: update.oldOid.toLowerCase(),
+			newOid: update.newOid.toLowerCase(),
+		};
+		return buildReceivePackRequest(normalizedUpdate, capabilities);
+	}
+
+	public async receivePackAdvertiseRefs(
+		capabilities: string[] = [],
+	): Promise<Uint8Array> {
+		const fs = await loadNodeFs();
+		const refs = await this.listRefs("refs");
+		const headValue = String(
+			await fs.readFile(joinFsPath(this.gitDirPath, "HEAD"), {
+				encoding: "utf8",
+			}),
+		).trim();
+		const headRefName = headValue.startsWith("ref:")
+			? normalizeRefName(headValue.slice("ref:".length).trim())
+			: null;
+		const orderedRefs =
+			headRefName === null
+				? refs
+				: [
+						...refs.filter((entry) => entry.refName === headRefName),
+						...refs.filter((entry) => entry.refName !== headRefName),
+					];
+		const mergedCapabilities = [
+			"report-status",
+			"report-status-v2",
+			"delete-refs",
+			"side-band-64k",
+			"ofs-delta",
+			`object-format=${this.hashAlgorithm}`,
+			...capabilities,
+		];
+		return buildReceivePackAdvertisement(
+			orderedRefs.map((entry) => ({
+				refName: entry.refName,
+				oid: entry.oid,
+			})),
+			mergedCapabilities,
+		);
+	}
+
+	public async receivePackUpdate(
+		update: ReceivePackRefUpdate,
+		message = "receive-pack",
+	): Promise<{ refName: string; oid: string }> {
+		if (!isObjectId(update.oldOid) || !isObjectId(update.newOid)) {
+			throw new GitError("receive-pack oid invalid", "INVALID_ARGUMENT", {
+				update,
+			});
+		}
+		if (update.oldOid.length !== update.newOid.length) {
+			throw new GitError(
+				"receive-pack oid length mismatch",
+				"INVALID_ARGUMENT",
+				{
+					update,
+				},
+			);
+		}
+		const normalizedRefName = normalizeRefName(update.refName);
+		const normalizedOldOid = update.oldOid.toLowerCase();
+		const normalizedNewOid = update.newOid.toLowerCase();
+		const zeroOid = "0".repeat(normalizedNewOid.length);
+		const currentOid = await this.resolveRef(normalizedRefName);
+		const expectedCurrentOid = currentOid === null ? zeroOid : currentOid;
+		if (expectedCurrentOid !== normalizedOldOid) {
+			throw new GitError("receive-pack old oid mismatch", "LOCK_CONFLICT", {
+				refName: normalizedRefName,
+				expectedOldOid: expectedCurrentOid,
+				actualOldOid: normalizedOldOid,
+			});
+		}
+		if (normalizedNewOid === zeroOid) {
+			if (currentOid !== null) {
+				await this.deleteRef(normalizedRefName, message);
+			}
+			return { refName: normalizedRefName, oid: normalizedNewOid };
+		}
+		await this.updateRef(normalizedRefName, normalizedNewOid, message);
+		return { refName: normalizedRefName, oid: normalizedNewOid };
 	}
 
 	public async writePackBundle(
