@@ -90,7 +90,7 @@
 			"id": "clone-receive-pack-plumbing",
 			"section": "newer-git-command-families",
 			"matrix_label": "`clone`, receive-pack plumbing",
-			"state": "partial"
+			"state": "implemented"
 		},
 		{
 			"id": "repo",
