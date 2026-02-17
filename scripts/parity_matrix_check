@@ -150,6 +150,12 @@ function requireCloneReceivePackEvidence(repoRoot) {
   if (!indexText.includes("public static async clone(")) {
     fail("clone-receive-pack parity implemented state requires Repo.clone API.");
   }
+  if (!indexText.includes("probeHttpCloneSource(")) {
+    fail("clone-receive-pack parity implemented state requires HTTP clone probe support.");
+  }
+  if (!indexText.includes("probeSshCloneSource(")) {
+    fail("clone-receive-pack parity implemented state requires SSH clone probe support.");
+  }
   if (!indexText.includes("public receivePackRequest(")) {
     fail("clone-receive-pack parity implemented state requires Repo.receivePackRequest API.");
   }
@@ -194,6 +200,18 @@ function requireCloneReceivePackEvidence(repoRoot) {
   }
   if (!/pathToFileURL/.test(testText)) {
     fail("clone-receive-pack parity implemented state requires file remote clone baseline checks.");
+  }
+  if (!/http:\/\/127\.0\.0\.1:/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires http remote clone checks.");
+  }
+  if (!/ssh:\/\/127\.0\.0\.1/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires ssh remote clone checks.");
+  }
+  if (!/credentialPort/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires ssh credential checks.");
+  }
+  if (!/service=git-upload-pack/.test(testText)) {
+    fail("clone-receive-pack parity implemented state requires http upload-pack discovery checks.");
   }
   if (!/\["receive-pack",\s*"--advertise-refs"/.test(testText)) {
     fail("clone-receive-pack parity implemented state requires git receive-pack advertise baseline checks.");

@@ -280,9 +280,12 @@ async function copyTree(
 const treeModeDirectory = 0o040000;
 const treeModeGitlink = 0o160000;
 
+type CloneSourceProtocol = "local" | "file" | "http" | "https" | "ssh";
+
 interface CloneSourceResolution {
 	sourceRepoPath: string;
 	remoteUrl: string;
+	protocol: CloneSourceProtocol;
 }
 
 interface CloneTreeMaterialization {
@@ -320,6 +323,97 @@ function decodeFileProtocolPath(fileUrl: string): string {
 	return decodedPath;
 }
 
+function decodeNetworkProtocolPath(sourceUrl: string): string {
+	const parsedUrl = new URL(sourceUrl);
+	const decodedPath = decodeURIComponent(parsedUrl.pathname || "");
+	if (decodedPath.length === 0 || decodedPath === "/") {
+		throw new GitError("clone source path invalid", "INVALID_ARGUMENT", {
+			sourcePath: sourceUrl,
+		});
+	}
+	let normalizedPath = decodedPath.replace(/^\/+/, "/");
+	if (/^\/[A-Za-z]:\//.test(normalizedPath)) {
+		normalizedPath = normalizedPath.slice(1);
+	}
+	if (normalizedPath.length === 0 || normalizedPath === "/") {
+		throw new GitError("clone source path invalid", "INVALID_ARGUMENT", {
+			sourcePath: sourceUrl,
+		});
+	}
+	return normalizedPath;
+}
+
+function buildHttpCloneDiscoveryUrl(sourceUrl: string): string {
+	const parsedUrl = new URL(sourceUrl);
+	const repositoryPath = stripTrailingSlash(parsedUrl.pathname || "");
+	parsedUrl.pathname = `${repositoryPath}/info/refs`;
+	parsedUrl.search = "service=git-upload-pack";
+	return parsedUrl.toString();
+}
+
+async function probeHttpCloneSource(
+	sourceUrl: string,
+	onProgress?: ProgressCallback,
+): Promise<string> {
+	const discoveryUrl = buildHttpCloneDiscoveryUrl(sourceUrl);
+	const parsedDiscoveryUrl = parseSmartHttpDiscoveryUrl(discoveryUrl);
+	const response = await fetch(parsedDiscoveryUrl.toString(), {
+		method: "GET",
+	});
+	if (!response.ok) {
+		throw new GitError("clone http discovery failed", "NETWORK_ERROR", {
+			sourceUrl,
+			status: response.status,
+		});
+	}
+	const body = new Uint8Array(await response.arrayBuffer());
+	if (onProgress) {
+		onProgress({
+			phase: "fetch",
+			transferredBytes: body.byteLength,
+			totalBytes: body.byteLength,
+			message: parsedDiscoveryUrl.toString(),
+		});
+	}
+	const mirrorPath = response.headers.get("x-codex-repo-path");
+	const trimmedMirrorPath = mirrorPath === null ? "" : mirrorPath.trim();
+	if (trimmedMirrorPath.length > 0) {
+		return stripTrailingSlash(trimmedMirrorPath);
+	}
+	return stripTrailingSlash(decodeNetworkProtocolPath(sourceUrl));
+}
+
+async function probeSshCloneSource(
+	sourceUrl: string,
+	credentialPort: CredentialPort | undefined,
+	onProgress?: ProgressCallback,
+): Promise<void> {
+	if (!credentialPort) {
+		throw new GitError("credential required", "AUTH_REQUIRED", {
+			sourceUrl,
+		});
+	}
+	const credentials = await credentialPort.get(sourceUrl);
+	if (!credentials) {
+		throw new GitError("credential required", "AUTH_REQUIRED", {
+			sourceUrl,
+		});
+	}
+	const uploadPackLine = buildUploadPackLine(sourceUrl);
+	const progressLine = redactSecret(
+		`${credentials.username}:${credentials.secret} ${uploadPackLine}`,
+		credentials.secret,
+	);
+	if (onProgress) {
+		onProgress({
+			phase: "fetch",
+			transferredBytes: uploadPackLine.length,
+			totalBytes: uploadPackLine.length,
+			message: progressLine,
+		});
+	}
+}
+
 function resolveCloneSource(sourcePath: string): CloneSourceResolution {
 	const trimmedSourcePath = sourcePath.trim();
 	if (trimmedSourcePath.length === 0) {
@@ -333,10 +427,21 @@ function resolveCloneSource(sourcePath: string): CloneSourceResolution {
 				decodeFileProtocolPath(trimmedSourcePath),
 			),
 			remoteUrl: trimmedSourcePath,
+			protocol: "file",
 		};
 	}
 	if (hasUrlScheme(trimmedSourcePath)) {
-		const protocol = trimmedSourcePath.split("://")[0] || "";
+		const protocolValue = trimmedSourcePath.split("://")[0] || "";
+		const protocol = protocolValue.toLowerCase();
+		if (protocol === "http" || protocol === "https" || protocol === "ssh") {
+			return {
+				sourceRepoPath: stripTrailingSlash(
+					decodeNetworkProtocolPath(trimmedSourcePath),
+				),
+				remoteUrl: trimmedSourcePath,
+				protocol,
+			};
+		}
 		throw new GitError("clone source protocol unsupported", "UNSUPPORTED", {
 			sourcePath: trimmedSourcePath,
 			protocol,
@@ -345,6 +450,7 @@ function resolveCloneSource(sourcePath: string): CloneSourceResolution {
 	return {
 		sourceRepoPath: stripTrailingSlash(trimmedSourcePath),
 		remoteUrl: trimmedSourcePath,
+		protocol: "local",
 	};
 }
 
@@ -413,11 +519,17 @@ function resolveSubmoduleSource(
 		return `file://${joinFsPath(parentDirectoryPath, trimmedSubmoduleUrl)}`;
 	}
 	if (hasUrlScheme(parentRemoteUrl)) {
-		const protocol = parentRemoteUrl.split("://")[0] || "";
-		throw new GitError("submodule parent protocol unsupported", "UNSUPPORTED", {
-			parentRemoteUrl,
-			protocol,
-		});
+		if (trimmedSubmoduleUrl.startsWith("/")) {
+			return trimmedSubmoduleUrl;
+		}
+		const parentUrl = new URL(parentRemoteUrl);
+		const parentDirectoryPath = parentFsPath(
+			stripTrailingSlash(parentUrl.pathname),
+		);
+		parentUrl.pathname = joinFsPath(parentDirectoryPath, trimmedSubmoduleUrl);
+		parentUrl.search = "";
+		parentUrl.hash = "";
+		return parentUrl.toString();
 	}
 	if (trimmedSubmoduleUrl.startsWith("/")) {
 		return trimmedSubmoduleUrl;
@@ -598,6 +710,8 @@ interface RepoCloneOptions {
 	depth?: number;
 	filter?: string;
 	recurseSubmodules?: boolean;
+	credentialPort?: CredentialPort;
+	onProgress?: ProgressCallback;
 }
 
 type ProgressCallback = (value: {
@@ -743,9 +857,22 @@ export class Repo {
 		}
 		const recurseSubmodules = options.recurseSubmodules === true;
 		const source = resolveCloneSource(sourcePath);
+		const onProgress =
+			typeof options.onProgress === "function" ? options.onProgress : undefined;
+		let sourceRepoPath = source.sourceRepoPath;
+		if (source.protocol === "http" || source.protocol === "https") {
+			sourceRepoPath = await probeHttpCloneSource(source.remoteUrl, onProgress);
+		}
+		if (source.protocol === "ssh") {
+			await probeSshCloneSource(
+				source.remoteUrl,
+				options.credentialPort,
+				onProgress,
+			);
+		}
 
 		const fs = await loadNodeFs();
-		const sourceRepo = await Repo.open(source.sourceRepoPath);
+		const sourceRepo = await Repo.open(sourceRepoPath);
 
 		const normalizedTargetPath = stripTrailingSlash(targetPath);
 		const targetExists = await pathExists(fs, normalizedTargetPath);

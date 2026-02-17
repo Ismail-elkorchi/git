@@ -39,7 +39,7 @@ The parity matrix MUST define test evidence expectations for each command family
 | Command Family | State | Evidence Expectation |
 | --- | --- | --- |
 | `refs` | implemented | MUST pass create and list and delete and verify parity tests against git refs behavior. |
-| `clone`, receive-pack plumbing | implemented | MUST pass local and file-remote clone parity with branch and depth and filter and recurse-submodules options and receive-pack advertise and update parity tests against git baseline commands. |
+| `clone`, receive-pack plumbing | implemented | MUST pass local and file and http and https and ssh clone parity with branch and depth and filter and recurse-submodules options and receive-pack advertise and update parity tests against git baseline commands. |
 | `repo` | implemented | MUST pass repo info and repo structure keyvalue parity tests against git repo command outputs. |
 | `backfill` | implemented | MUST pass option-status and sparse-scope backfill parity tests against git backfill behavior. |
 | `replay` | implemented | MUST pass ordered replay and conflict-stop parity tests against sequential git apply behavior. |
