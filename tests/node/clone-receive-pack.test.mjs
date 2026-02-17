@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -58,6 +59,82 @@ function readPktFrame(stream) {
 
 function isLockConflict(error) {
 	return !!error && typeof error === "object" && error.code === "LOCK_CONFLICT";
+}
+
+async function createCloneNetworkFixture(rootPrefix) {
+	const submoduleSourceRoot = await mkdtemp(
+		path.join(os.tmpdir(), `${rootPrefix}-submodule-source-`),
+	);
+	const submoduleBareRoot = await mkdtemp(
+		path.join(os.tmpdir(), `${rootPrefix}-submodule-bare-`),
+	);
+	const superSourceRoot = await mkdtemp(
+		path.join(os.tmpdir(), `${rootPrefix}-super-source-`),
+	);
+	const superBareRoot = await mkdtemp(
+		path.join(os.tmpdir(), `${rootPrefix}-super-bare-`),
+	);
+
+	runGitText(["init", "--quiet"], submoduleSourceRoot);
+	await writeFile(`${submoduleSourceRoot}/sub.txt`, "submodule\n", "utf8");
+	runGitText(["add", "sub.txt"], submoduleSourceRoot);
+	runGitText(["commit", "-m", "submodule-base"], submoduleSourceRoot);
+	runGitText(
+		["clone", "--quiet", "--bare", submoduleSourceRoot, submoduleBareRoot],
+		submoduleSourceRoot,
+	);
+
+	runGitText(["init", "--quiet"], superSourceRoot);
+	await writeFile(`${superSourceRoot}/root.txt`, "base\n", "utf8");
+	runGitText(["add", "root.txt"], superSourceRoot);
+	runGitText(["commit", "-m", "base"], superSourceRoot);
+	await writeFile(`${superSourceRoot}/root.txt`, "history\n", "utf8");
+	runGitText(["add", "root.txt"], superSourceRoot);
+	runGitText(["commit", "-m", "history"], superSourceRoot);
+	runGitText(
+		[
+			"-c",
+			"protocol.file.allow=always",
+			"submodule",
+			"add",
+			"-q",
+			pathToFileURL(submoduleBareRoot).toString(),
+			"modules/lib",
+		],
+		superSourceRoot,
+	);
+	runGitText(["commit", "-am", "add-submodule"], superSourceRoot);
+	const defaultBranch = runGitText(
+		["symbolic-ref", "--short", "HEAD"],
+		superSourceRoot,
+	);
+
+	const featureBranch = "feature-net";
+	runGitText(["checkout", "-b", featureBranch], superSourceRoot);
+	await writeFile(`${superSourceRoot}/root.txt`, "feature-net\n", "utf8");
+	runGitText(["add", "root.txt"], superSourceRoot);
+	runGitText(["commit", "-m", "feature-net"], superSourceRoot);
+	const featureOid = runGitText(["rev-parse", "HEAD"], superSourceRoot);
+	runGitText(["checkout", defaultBranch], superSourceRoot);
+
+	runGitText(
+		["clone", "--quiet", "--bare", superSourceRoot, superBareRoot],
+		superSourceRoot,
+	);
+	runGitText(["config", "uploadpack.allowFilter", "true"], superBareRoot);
+	runGitText(
+		["config", "uploadpack.allowAnySHA1InWant", "true"],
+		superBareRoot,
+	);
+
+	return {
+		submoduleSourceRoot,
+		submoduleBareRoot,
+		superSourceRoot,
+		superBareRoot,
+		featureBranch,
+		featureOid,
+	};
 }
 
 test("clone local branch selection keeps parity with git clone INV-FEAT-0053", async (context) => {
@@ -221,6 +298,210 @@ test("clone file remote supports depth filter and recurse-submodules parity INV-
 			baselineRoot,
 		],
 		superSourceRoot,
+	);
+	assert.equal(
+		runGitText(["rev-parse", "HEAD"], targetRoot),
+		runGitText(["rev-parse", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		runGitText(["rev-list", "--count", "HEAD"], targetRoot),
+		runGitText(["rev-list", "--count", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		await readFile(`${baselineRoot}/modules/lib/sub.txt`, "utf8"),
+	);
+});
+
+test("clone http remote supports branch depth filter and recurse-submodules parity INV-FEAT-0053", async (context) => {
+	const { Repo } = await import("../../dist/index.js");
+	const fixture = await createCloneNetworkFixture("repo-clone-http");
+	const targetRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-http-target-"),
+	);
+	const baselineRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-http-baseline-"),
+	);
+
+	const server = createServer((req, res) => {
+		const requestUrl = new URL(req.url || "/", "http://127.0.0.1");
+		const isUploadPackDiscovery =
+			req.method === "GET" &&
+			requestUrl.pathname.endsWith("/info/refs") &&
+			requestUrl.searchParams.get("service") === "git-upload-pack";
+		if (!isUploadPackDiscovery) {
+			res.statusCode = 404;
+			res.end("not-found");
+			return;
+		}
+		res.statusCode = 200;
+		res.setHeader("x-codex-repo-path", fixture.superBareRoot);
+		res.end("upload-pack-discovery-ok");
+	});
+	await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+	context.after(async () => {
+		server.close();
+		await rm(fixture.submoduleSourceRoot, { recursive: true, force: true });
+		await rm(fixture.submoduleBareRoot, { recursive: true, force: true });
+		await rm(fixture.superSourceRoot, { recursive: true, force: true });
+		await rm(fixture.superBareRoot, { recursive: true, force: true });
+		await rm(targetRoot, { recursive: true, force: true });
+		await rm(baselineRoot, { recursive: true, force: true });
+	});
+
+	const address = server.address();
+	const port = typeof address === "object" && address ? address.port : 0;
+	const remoteUrl = `http://127.0.0.1:${port}/network.git`;
+	const progressEvents = [];
+	const cloned = await Repo.clone(remoteUrl, targetRoot, {
+		branch: fixture.featureBranch,
+		depth: 1,
+		filter: "blob:none",
+		recurseSubmodules: true,
+		onProgress: (event) => progressEvents.push(event),
+	});
+	assert.equal(cloned.worktreePath, targetRoot);
+	assert.equal(
+		runGitText(["rev-parse", "HEAD"], targetRoot),
+		fixture.featureOid,
+	);
+	assert.equal(runGitText(["rev-list", "--count", "HEAD"], targetRoot), "1");
+	const partialCloneState = JSON.parse(
+		await readFile(`${targetRoot}/.git/partial-clone-codex.json`, "utf8"),
+	);
+	assert.equal(partialCloneState.filterSpec, "blob:none");
+	assert.equal(
+		runGitText(["config", "--get", "remote.origin.url"], targetRoot),
+		remoteUrl,
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		"submodule\n",
+	);
+	assert.ok(progressEvents.some((event) => event.phase === "fetch"));
+	assert.ok(
+		progressEvents.some((event) =>
+			String(event.message || "").includes("service=git-upload-pack"),
+		),
+	);
+	runGitText(["fsck", "--full"], targetRoot);
+
+	runGitText(
+		[
+			"-c",
+			"protocol.file.allow=always",
+			"clone",
+			"--quiet",
+			"--branch",
+			fixture.featureBranch,
+			"--depth",
+			"1",
+			"--filter=blob:none",
+			"--recurse-submodules",
+			pathToFileURL(fixture.superBareRoot).toString(),
+			baselineRoot,
+		],
+		fixture.superSourceRoot,
+	);
+	assert.equal(
+		runGitText(["rev-parse", "HEAD"], targetRoot),
+		runGitText(["rev-parse", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		runGitText(["rev-list", "--count", "HEAD"], targetRoot),
+		runGitText(["rev-list", "--count", "HEAD"], baselineRoot),
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		await readFile(`${baselineRoot}/modules/lib/sub.txt`, "utf8"),
+	);
+});
+
+test("clone ssh remote supports branch depth filter and recurse-submodules parity INV-FEAT-0053", async (context) => {
+	const { Repo } = await import("../../dist/index.js");
+	const fixture = await createCloneNetworkFixture("repo-clone-ssh");
+	const targetRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-ssh-target-"),
+	);
+	const baselineRoot = await mkdtemp(
+		path.join(os.tmpdir(), "repo-clone-ssh-baseline-"),
+	);
+	context.after(async () => {
+		await rm(fixture.submoduleSourceRoot, { recursive: true, force: true });
+		await rm(fixture.submoduleBareRoot, { recursive: true, force: true });
+		await rm(fixture.superSourceRoot, { recursive: true, force: true });
+		await rm(fixture.superBareRoot, { recursive: true, force: true });
+		await rm(targetRoot, { recursive: true, force: true });
+		await rm(baselineRoot, { recursive: true, force: true });
+	});
+
+	const remoteUrl = `ssh://127.0.0.1${pathToFileURL(fixture.superBareRoot).pathname}`;
+	const secret = "ssh-clone-secret";
+	const progressEvents = [];
+	const credentialPort = {
+		async get(url) {
+			return {
+				username: "robot",
+				secret,
+				url,
+			};
+		},
+	};
+	const cloned = await Repo.clone(remoteUrl, targetRoot, {
+		branch: fixture.featureBranch,
+		depth: 1,
+		filter: "blob:none",
+		recurseSubmodules: true,
+		credentialPort,
+		onProgress: (event) => progressEvents.push(event),
+	});
+	assert.equal(cloned.worktreePath, targetRoot);
+	assert.equal(
+		runGitText(["rev-parse", "HEAD"], targetRoot),
+		fixture.featureOid,
+	);
+	assert.equal(runGitText(["rev-list", "--count", "HEAD"], targetRoot), "1");
+	const partialCloneState = JSON.parse(
+		await readFile(`${targetRoot}/.git/partial-clone-codex.json`, "utf8"),
+	);
+	assert.equal(partialCloneState.filterSpec, "blob:none");
+	assert.equal(
+		runGitText(["config", "--get", "remote.origin.url"], targetRoot),
+		remoteUrl,
+	);
+	assert.equal(
+		await readFile(`${targetRoot}/modules/lib/sub.txt`, "utf8"),
+		"submodule\n",
+	);
+	assert.ok(
+		progressEvents.some((event) =>
+			String(event.message || "").includes("upload-pack"),
+		),
+	);
+	assert.ok(
+		progressEvents.every(
+			(event) => !String(event.message || "").includes(secret),
+		),
+	);
+	runGitText(["fsck", "--full"], targetRoot);
+
+	runGitText(
+		[
+			"-c",
+			"protocol.file.allow=always",
+			"clone",
+			"--quiet",
+			"--branch",
+			fixture.featureBranch,
+			"--depth",
+			"1",
+			"--filter=blob:none",
+			"--recurse-submodules",
+			pathToFileURL(fixture.superBareRoot).toString(),
+			baselineRoot,
+		],
+		fixture.superSourceRoot,
 	);
 	assert.equal(
 		runGitText(["rev-parse", "HEAD"], targetRoot),

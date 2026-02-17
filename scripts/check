@@ -1053,6 +1053,8 @@ function invariantHandlers(repoRoot) {
   handlers.set("INV-FEAT-0053", () => {
     existsFile("src/core/network/receive-pack.ts");
     requireTreeMatch("src", /\bstatic async clone\(/, "repo-clone-method");
+    requireTreeMatch("src", /\bprobeHttpCloneSource\(/, "repo-clone-http-probe-method");
+    requireTreeMatch("src", /\bprobeSshCloneSource\(/, "repo-clone-ssh-probe-method");
     requireTreeMatch("src", /\breceivePackRequest\(/, "repo-receive-pack-request-method");
     requireTreeMatch("src", /\breceivePackAdvertiseRefs\(/, "repo-receive-pack-advertise-method");
     requireTreeMatch("src", /\breceivePackUpdate\(/, "repo-receive-pack-update-method");
@@ -1062,6 +1064,10 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("tests", /--filter=blob:none/, "git-clone-filter-baseline-token");
     requireTreeMatch("tests", /--recurse-submodules/, "git-clone-submodule-baseline-token");
     requireTreeMatch("tests", /\bpathToFileURL\b/, "git-clone-file-remote-baseline-token");
+    requireTreeMatch("tests", /http:\/\/127\.0\.0\.1:/, "git-clone-http-remote-token");
+    requireTreeMatch("tests", /ssh:\/\/127\.0\.0\.1/, "git-clone-ssh-remote-token");
+    requireTreeMatch("tests", /\bcredentialPort\b/, "git-clone-ssh-credential-token");
+    requireTreeMatch("tests", /service=git-upload-pack/, "git-clone-http-discovery-token");
     requireTreeMatch("tests", /\["receive-pack",\s*"--advertise-refs"/, "git-receive-pack-advertise-baseline-token");
   });
 
