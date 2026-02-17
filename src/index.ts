@@ -277,6 +277,318 @@ async function copyTree(
 	}
 }
 
+const treeModeDirectory = 0o040000;
+const treeModeGitlink = 0o160000;
+
+interface CloneSourceResolution {
+	sourceRepoPath: string;
+	remoteUrl: string;
+}
+
+interface CloneTreeMaterialization {
+	files: Record<string, Uint8Array>;
+	gitlinks: Array<{ path: string; oid: string }>;
+}
+
+interface ParsedGitmoduleEntry {
+	path: string;
+	url: string;
+}
+
+function hasUrlScheme(value: string): boolean {
+	return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value);
+}
+
+function decodeFileProtocolPath(fileUrl: string): string {
+	let pathValue = fileUrl.slice("file://".length);
+	if (pathValue.startsWith("localhost/")) {
+		pathValue = pathValue.slice("localhost".length);
+	}
+	if (!pathValue.startsWith("/")) {
+		throw new GitError("clone source protocol unsupported", "UNSUPPORTED", {
+			sourcePath: fileUrl,
+			protocol: "file-host",
+		});
+	}
+	const decodedPath = decodeURIComponent(pathValue);
+	if (decodedPath.length === 0) {
+		throw new GitError("clone source path invalid", "INVALID_ARGUMENT", {
+			sourcePath: fileUrl,
+		});
+	}
+	if (/^\/[A-Za-z]:\//.test(decodedPath)) return decodedPath.slice(1);
+	return decodedPath;
+}
+
+function resolveCloneSource(sourcePath: string): CloneSourceResolution {
+	const trimmedSourcePath = sourcePath.trim();
+	if (trimmedSourcePath.length === 0) {
+		throw new GitError("clone source invalid", "INVALID_ARGUMENT", {
+			sourcePath,
+		});
+	}
+	if (trimmedSourcePath.startsWith("file://")) {
+		return {
+			sourceRepoPath: stripTrailingSlash(
+				decodeFileProtocolPath(trimmedSourcePath),
+			),
+			remoteUrl: trimmedSourcePath,
+		};
+	}
+	if (hasUrlScheme(trimmedSourcePath)) {
+		const protocol = trimmedSourcePath.split("://")[0] || "";
+		throw new GitError("clone source protocol unsupported", "UNSUPPORTED", {
+			sourcePath: trimmedSourcePath,
+			protocol,
+		});
+	}
+	return {
+		sourceRepoPath: stripTrailingSlash(trimmedSourcePath),
+		remoteUrl: trimmedSourcePath,
+	};
+}
+
+function parseGitmodules(gitmodulesText: string): ParsedGitmoduleEntry[] {
+	const out: ParsedGitmoduleEntry[] = [];
+	let currentPath = "";
+	let currentUrl = "";
+
+	for (const rawLine of gitmodulesText.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (line.length === 0 || line.startsWith("#") || line.startsWith(";")) {
+			continue;
+		}
+		if (/^\[submodule\s+"[^"]+"\]$/.test(line)) {
+			if (currentPath.length > 0 && currentUrl.length > 0) {
+				out.push({ path: currentPath, url: currentUrl });
+			}
+			currentPath = "";
+			currentUrl = "";
+			continue;
+		}
+		const pathMatch = line.match(/^path\s*=\s*(.+)$/);
+		if (pathMatch) {
+			currentPath = (pathMatch[1] || "").trim();
+			continue;
+		}
+		const urlMatch = line.match(/^url\s*=\s*(.+)$/);
+		if (urlMatch) {
+			currentUrl = (urlMatch[1] || "").trim();
+		}
+	}
+	if (currentPath.length > 0 && currentUrl.length > 0) {
+		out.push({ path: currentPath, url: currentUrl });
+	}
+	return out;
+}
+
+function resolveSubmoduleSource(
+	parentRemoteUrl: string,
+	submoduleUrl: string,
+): string {
+	const trimmedSubmoduleUrl = submoduleUrl.trim();
+	if (trimmedSubmoduleUrl.length === 0) {
+		throw new GitError("submodule url invalid", "INVALID_ARGUMENT", {
+			submoduleUrl,
+		});
+	}
+
+	if (trimmedSubmoduleUrl.startsWith("file://")) {
+		return trimmedSubmoduleUrl;
+	}
+	if (hasUrlScheme(trimmedSubmoduleUrl)) {
+		const protocol = trimmedSubmoduleUrl.split("://")[0] || "";
+		throw new GitError("submodule source protocol unsupported", "UNSUPPORTED", {
+			submoduleUrl: trimmedSubmoduleUrl,
+			protocol,
+		});
+	}
+
+	if (parentRemoteUrl.startsWith("file://")) {
+		const parentPath = decodeFileProtocolPath(parentRemoteUrl);
+		if (trimmedSubmoduleUrl.startsWith("/")) {
+			return `file://${trimmedSubmoduleUrl}`;
+		}
+		const parentDirectoryPath = parentFsPath(stripTrailingSlash(parentPath));
+		return `file://${joinFsPath(parentDirectoryPath, trimmedSubmoduleUrl)}`;
+	}
+	if (hasUrlScheme(parentRemoteUrl)) {
+		const protocol = parentRemoteUrl.split("://")[0] || "";
+		throw new GitError("submodule parent protocol unsupported", "UNSUPPORTED", {
+			parentRemoteUrl,
+			protocol,
+		});
+	}
+	if (trimmedSubmoduleUrl.startsWith("/")) {
+		return trimmedSubmoduleUrl;
+	}
+	const parentDirectoryPath = parentFsPath(stripTrailingSlash(parentRemoteUrl));
+	return joinFsPath(parentDirectoryPath, trimmedSubmoduleUrl);
+}
+
+function upsertRemoteOriginConfig(
+	configText: string,
+	remoteUrl: string,
+	partialCloneFilter: string,
+): string {
+	const lines = configText.split(/\r?\n/);
+	const out: string[] = [];
+	for (let index = 0; index < lines.length; index += 1) {
+		const line = lines[index] || "";
+		if (line.trim() !== '[remote "origin"]') {
+			out.push(line);
+			continue;
+		}
+		index += 1;
+		while (index < lines.length) {
+			const blockLine = (lines[index] || "").trim();
+			if (blockLine.startsWith("[") && blockLine.endsWith("]")) {
+				index -= 1;
+				break;
+			}
+			index += 1;
+		}
+	}
+
+	while (out.length > 0 && (out[out.length - 1] || "").trim().length === 0) {
+		out.pop();
+	}
+	if (out.length > 0) out.push("");
+	out.push('[remote "origin"]');
+	out.push(`\turl = ${remoteUrl}`);
+	out.push("\tfetch = +refs/heads/*:refs/remotes/origin/*");
+	if (partialCloneFilter.length > 0) {
+		out.push("\tpromisor = true");
+		out.push(`\tpartialclonefilter = ${partialCloneFilter}`);
+	}
+	out.push("");
+	return out.join("\n");
+}
+
+async function collectTreeMaterialization(
+	repo: Repo,
+	treeOid: string,
+	pathPrefix: string,
+	oidByteLength: number,
+	files: Record<string, Uint8Array>,
+	gitlinks: Array<{ path: string; oid: string }>,
+): Promise<void> {
+	const treePayload = await repo.readObject(treeOid);
+	const treeEntries = parseLastModifiedTreeEntries(treePayload, oidByteLength);
+	for (const treeEntry of treeEntries) {
+		const relativePath =
+			pathPrefix.length > 0
+				? `${pathPrefix}/${treeEntry.name}`
+				: treeEntry.name;
+		const modeKind = treeEntry.mode & 0o170000;
+		if (modeKind === treeModeDirectory) {
+			await collectTreeMaterialization(
+				repo,
+				treeEntry.oid,
+				relativePath,
+				oidByteLength,
+				files,
+				gitlinks,
+			);
+			continue;
+		}
+		if (modeKind === treeModeGitlink) {
+			gitlinks.push({ path: relativePath, oid: treeEntry.oid });
+			continue;
+		}
+		files[relativePath] = await repo.readObject(treeEntry.oid);
+	}
+}
+
+async function collectCommitMaterialization(
+	repo: Repo,
+	commitOid: string,
+): Promise<CloneTreeMaterialization> {
+	const commitPayload = await repo.readObject(commitOid);
+	const commitMetadata = parseLastModifiedCommitMetadata(commitPayload);
+	if (
+		commitMetadata === null ||
+		!isObjectId(commitMetadata.treeOid.toLowerCase())
+	) {
+		throw new GitError("clone head commit malformed", "OBJECT_FORMAT_ERROR", {
+			commitOid,
+		});
+	}
+	const oidByteLength = repo.hashAlgorithm === "sha256" ? 32 : 20;
+	const files: Record<string, Uint8Array> = {};
+	const gitlinks: Array<{ path: string; oid: string }> = [];
+	await collectTreeMaterialization(
+		repo,
+		commitMetadata.treeOid.toLowerCase(),
+		"",
+		oidByteLength,
+		files,
+		gitlinks,
+	);
+	return { files, gitlinks };
+}
+
+async function computeShallowBoundaryCommits(
+	repo: Repo,
+	headCommitOid: string,
+	depth: number,
+): Promise<string[]> {
+	const normalizedHead = headCommitOid.toLowerCase();
+	const queue: Array<{ oid: string; level: number }> = [
+		{ oid: normalizedHead, level: 1 },
+	];
+	const seen = new Map<string, number>([[normalizedHead, 1]]);
+	const boundaries = new Set<string>();
+
+	for (let index = 0; index < queue.length; index += 1) {
+		const item = queue[index];
+		if (!item) continue;
+		if (item.level >= depth) {
+			boundaries.add(item.oid);
+			continue;
+		}
+
+		const commitPayload = await repo.readObject(item.oid);
+		const metadata = parseLastModifiedCommitMetadata(commitPayload);
+		if (metadata === null) {
+			throw new GitError(
+				"clone shallow commit malformed",
+				"OBJECT_FORMAT_ERROR",
+				{
+					oid: item.oid,
+				},
+			);
+		}
+
+		for (const rawParentOid of metadata.parentOids) {
+			const parentOid = rawParentOid.toLowerCase();
+			if (!isObjectId(parentOid)) {
+				throw new GitError(
+					"clone shallow parent oid malformed",
+					"OBJECT_FORMAT_ERROR",
+					{
+						oid: item.oid,
+						parentOid: rawParentOid,
+					},
+				);
+			}
+			const nextLevel = item.level + 1;
+			const previousLevel = seen.get(parentOid);
+			if (previousLevel !== undefined && previousLevel <= nextLevel) continue;
+			seen.set(parentOid, nextLevel);
+			queue.push({
+				oid: parentOid,
+				level: nextLevel,
+			});
+		}
+	}
+
+	if (boundaries.size === 0) {
+		boundaries.add(normalizedHead);
+	}
+	return [...boundaries].sort((a, b) => a.localeCompare(b));
+}
+
 interface RepoInitOptions {
 	hashAlgorithm?: GitHashAlgorithm;
 }
@@ -405,29 +717,16 @@ export class Repo {
 		targetPath: string,
 		options: RepoCloneOptions = {},
 	): Promise<Repo> {
-		if (typeof options.depth === "number") {
-			throw new GitError("clone depth unsupported", "UNSUPPORTED", {
+		const normalizedDepth =
+			options.depth === undefined ? null : Number(options.depth);
+		if (
+			normalizedDepth !== null &&
+			(!Number.isInteger(normalizedDepth) || normalizedDepth < 1)
+		) {
+			throw new GitError("clone depth invalid", "INVALID_ARGUMENT", {
 				depth: options.depth,
 			});
 		}
-		if (
-			typeof options.filter === "string" &&
-			options.filter.trim().length > 0
-		) {
-			throw new GitError("clone filter unsupported", "UNSUPPORTED", {
-				filter: options.filter,
-			});
-		}
-		if (options.recurseSubmodules === true) {
-			throw new GitError(
-				"clone recurse-submodules unsupported",
-				"UNSUPPORTED",
-				{
-					recurseSubmodules: true,
-				},
-			);
-		}
-
 		const normalizedBranch =
 			typeof options.branch === "string" ? options.branch.trim() : "";
 		if (typeof options.branch === "string" && normalizedBranch.length === 0) {
@@ -435,14 +734,18 @@ export class Repo {
 				branch: options.branch,
 			});
 		}
-
-		const fs = await loadNodeFs();
-		const sourceRepo = await Repo.open(sourcePath);
-		if (sourceRepo.worktreePath === null) {
-			throw new GitError("clone source worktree unsupported", "UNSUPPORTED", {
-				sourcePath,
+		const normalizedFilter =
+			typeof options.filter === "string" ? options.filter.trim() : "";
+		if (typeof options.filter === "string" && normalizedFilter.length === 0) {
+			throw new GitError("clone filter invalid", "INVALID_ARGUMENT", {
+				filter: options.filter,
 			});
 		}
+		const recurseSubmodules = options.recurseSubmodules === true;
+		const source = resolveCloneSource(sourcePath);
+
+		const fs = await loadNodeFs();
+		const sourceRepo = await Repo.open(source.sourceRepoPath);
 
 		const normalizedTargetPath = stripTrailingSlash(targetPath);
 		const targetExists = await pathExists(fs, normalizedTargetPath);
@@ -467,6 +770,13 @@ export class Repo {
 			hashAlgorithm: sourceRepo.hashAlgorithm,
 		});
 		await copyTree(fs, sourceRepo.gitDirPath, initialized.gitDirPath);
+		await fs.writeFile(
+			joinFsPath(initialized.gitDirPath, "config"),
+			buildRepoConfig(sourceRepo.hashAlgorithm),
+			{
+				encoding: "utf8",
+			},
+		);
 
 		const cloned = await Repo.open(normalizedTargetPath);
 		if (normalizedBranch.length > 0) {
@@ -486,43 +796,161 @@ export class Repo {
 			);
 		}
 
+		const headPath = joinFsPath(cloned.gitDirPath, "HEAD");
+		const headValue = String(
+			await fs.readFile(headPath, {
+				encoding: "utf8",
+			}),
+		).trim();
+		const headRef = headValue.startsWith("ref:")
+			? normalizeRefName(headValue.slice("ref:".length).trim())
+			: null;
+		const headBranchRef = headRef?.startsWith("refs/heads/") ? headRef : null;
+		const localHeadRefs = await cloned.listRefs("refs/heads");
+		for (const localHeadRef of localHeadRefs) {
+			const branchName = localHeadRef.refName.slice("refs/heads/".length);
+			await cloned.updateRef(
+				`refs/remotes/origin/${branchName}`,
+				localHeadRef.oid,
+				"clone-remote-track",
+			);
+			if (headBranchRef === null || localHeadRef.refName === headBranchRef) {
+				continue;
+			}
+			await cloned.deleteRef(localHeadRef.refName, "clone-prune-local");
+		}
+		if (headBranchRef !== null) {
+			const headBranchName = headBranchRef.slice("refs/heads/".length);
+			const remoteHeadPath = joinFsPath(
+				cloned.gitDirPath,
+				"refs",
+				"remotes",
+				"origin",
+				"HEAD",
+			);
+			await fs.mkdir(parentFsPath(remoteHeadPath), { recursive: true });
+			await fs.writeFile(
+				remoteHeadPath,
+				`ref: refs/remotes/origin/${headBranchName}\n`,
+				{
+					encoding: "utf8",
+				},
+			);
+		}
+
 		const targetHeadOid = await cloned.resolveHead();
-		const commitPayload = await cloned.readObject(targetHeadOid);
-		const commitMetadata = parseLastModifiedCommitMetadata(commitPayload);
-		if (!commitMetadata) {
-			throw new GitError("clone head commit malformed", "OBJECT_FORMAT_ERROR", {
-				targetHeadOid,
+		const materialized = await collectCommitMaterialization(
+			cloned,
+			targetHeadOid,
+		);
+		await cloned.checkout(materialized.files);
+		for (const gitlink of materialized.gitlinks) {
+			await fs.mkdir(joinFsPath(normalizedTargetPath, gitlink.path), {
+				recursive: true,
 			});
 		}
-		const oidByteLength = cloned.hashAlgorithm === "sha256" ? 32 : 20;
-		const materializedFiles: Record<string, Uint8Array> = {};
 
-		const materializeTree = async (
-			treeOid: string,
-			pathPrefix = "",
-		): Promise<void> => {
-			const treePayload = await cloned.readObject(treeOid);
-			const treeEntries = parseLastModifiedTreeEntries(
-				treePayload,
-				oidByteLength,
+		if (normalizedDepth !== null) {
+			const shallowCommits = await computeShallowBoundaryCommits(
+				cloned,
+				targetHeadOid,
+				normalizedDepth,
 			);
-			for (const treeEntry of treeEntries) {
-				const relativePath =
-					pathPrefix.length > 0
-						? `${pathPrefix}/${treeEntry.name}`
-						: treeEntry.name;
-				const entryKind = treeEntry.mode & 0o170000;
-				if (entryKind === 0o040000) {
-					await materializeTree(treeEntry.oid, relativePath);
-					continue;
-				}
-				const blobPayload = await cloned.readObject(treeEntry.oid);
-				materializedFiles[relativePath] = blobPayload;
-			}
-		};
+			await fs.writeFile(
+				joinFsPath(cloned.gitDirPath, "shallow"),
+				`${shallowCommits.join("\n")}\n`,
+				{
+					encoding: "utf8",
+				},
+			);
+		}
 
-		await materializeTree(commitMetadata.treeOid);
-		await cloned.checkout(materializedFiles);
+		if (normalizedFilter.length > 0) {
+			await cloned.negotiatePartialCloneFilter(normalizedFilter, [
+				"filter",
+				`object-format=${cloned.hashAlgorithm}`,
+			]);
+		}
+
+		const configPath = joinFsPath(cloned.gitDirPath, "config");
+		const configText = String(
+			await fs.readFile(configPath, {
+				encoding: "utf8",
+			}),
+		);
+		await fs.writeFile(
+			configPath,
+			upsertRemoteOriginConfig(configText, source.remoteUrl, normalizedFilter),
+			{
+				encoding: "utf8",
+			},
+		);
+
+		if (recurseSubmodules && cloned.worktreePath !== null) {
+			const gitmodulesPath = joinFsPath(cloned.worktreePath, ".gitmodules");
+			if (await pathExists(fs, gitmodulesPath)) {
+				const gitmodulesText = String(
+					await fs.readFile(gitmodulesPath, {
+						encoding: "utf8",
+					}),
+				);
+				const gitlinksByPath = new Map<string, string>(
+					materialized.gitlinks.map((gitlink) => [gitlink.path, gitlink.oid]),
+				);
+				for (const entry of parseGitmodules(gitmodulesText)) {
+					assertSafeWorktreePath(entry.path);
+					const submoduleSource = resolveSubmoduleSource(
+						source.remoteUrl,
+						entry.url,
+					);
+					const submoduleTargetPath = joinFsPath(
+						cloned.worktreePath,
+						entry.path,
+					);
+					const submoduleCloneOptions: RepoCloneOptions = {
+						recurseSubmodules: true,
+					};
+					if (normalizedDepth !== null) {
+						submoduleCloneOptions.depth = normalizedDepth;
+					}
+					if (normalizedFilter.length > 0) {
+						submoduleCloneOptions.filter = normalizedFilter;
+					}
+					await Repo.clone(
+						submoduleSource,
+						submoduleTargetPath,
+						submoduleCloneOptions,
+					);
+
+					const gitlinkOid = gitlinksByPath.get(entry.path);
+					if (!gitlinkOid || !isObjectId(gitlinkOid.toLowerCase())) continue;
+					const submoduleRepo = await Repo.open(submoduleTargetPath);
+					const normalizedGitlinkOid = gitlinkOid.toLowerCase();
+					const gitlinkCommit = await submoduleRepo
+						.readObject(normalizedGitlinkOid)
+						.catch(() => null);
+					if (!(gitlinkCommit instanceof Uint8Array)) continue;
+					await fs.writeFile(
+						joinFsPath(submoduleRepo.gitDirPath, "HEAD"),
+						`${normalizedGitlinkOid}\n`,
+						{
+							encoding: "utf8",
+						},
+					);
+					const submoduleMaterialized = await collectCommitMaterialization(
+						submoduleRepo,
+						normalizedGitlinkOid,
+					);
+					await submoduleRepo.checkout(submoduleMaterialized.files);
+					for (const nestedGitlink of submoduleMaterialized.gitlinks) {
+						await fs.mkdir(
+							joinFsPath(submoduleTargetPath, nestedGitlink.path),
+							{ recursive: true },
+						);
+					}
+				}
+			}
+		}
 
 		return cloned;
 	}

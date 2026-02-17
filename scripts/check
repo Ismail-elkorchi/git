@@ -1058,6 +1058,10 @@ function invariantHandlers(repoRoot) {
     requireTreeMatch("src", /\breceivePackUpdate\(/, "repo-receive-pack-update-method");
     requireTreeMatch("tests", /\bINV-FEAT-0053\b/, "inv-feat-0053-tests-token");
     requireTreeMatch("tests", /\["clone",\s*"--quiet",\s*"--branch"/, "git-clone-branch-baseline-token");
+    requireTreeMatch("tests", /--depth/, "git-clone-depth-baseline-token");
+    requireTreeMatch("tests", /--filter=blob:none/, "git-clone-filter-baseline-token");
+    requireTreeMatch("tests", /--recurse-submodules/, "git-clone-submodule-baseline-token");
+    requireTreeMatch("tests", /\bpathToFileURL\b/, "git-clone-file-remote-baseline-token");
     requireTreeMatch("tests", /\["receive-pack",\s*"--advertise-refs"/, "git-receive-pack-advertise-baseline-token");
   });
 
