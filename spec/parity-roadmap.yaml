@@ -87,6 +87,12 @@
 			"state": "implemented"
 		},
 		{
+			"id": "clone-receive-pack-plumbing",
+			"section": "newer-git-command-families",
+			"matrix_label": "`clone`, receive-pack plumbing",
+			"state": "partial"
+		},
+		{
 			"id": "repo",
 			"section": "newer-git-command-families",
 			"matrix_label": "`repo`",
